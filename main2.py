@@ -39,6 +39,8 @@ class  MenuBase(tk.Tk):
 		self.introwindow.closeFrame()
 		self.accelwindow.openFrame()
 		self.menu.drawMenu()
+	def exit(self):
+		self.destroy()
 	def loop(self):
 		self.mainloop()
 class IntroWindow(tk.Frame):
@@ -138,6 +140,8 @@ class BaseMenu(tk.Menu):
 		self.filemenu.append(tk.Menu(self,tearoff=0))
 		self.add_cascade(label='File',menu=self.filemenu[0])
 		self.add_cascade(label='About',menu=self.filemenu[1])
+		self.filemenu[0].add_command(label="Exit", accelerator='(Crtl + X)',
+			command=self.master.exit)
 		self.master.config(menu=self)
 	
 		
