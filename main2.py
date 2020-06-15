@@ -30,6 +30,7 @@ class  MenuBase(tk.Tk):
 		
 		self.introwindow = IntroWindow(self)
 		self.accelwindow = AccelWindow(self)
+		self.menu =BaseMenu(self)
 		
 		self.pushIntroFrame()
 	def pushIntroFrame(self):
@@ -37,6 +38,7 @@ class  MenuBase(tk.Tk):
 	def pushAccelFrame(self):
 		self.introwindow.closeFrame()
 		self.accelwindow.openFrame()
+		self.menu.drawMenu()
 	def loop(self):
 		self.mainloop()
 class IntroWindow(tk.Frame):
@@ -125,6 +127,18 @@ class AccelWindow(tk.Frame):
 		self.pack(fill='none',expand=1)
 		
 		tk.Label(self, text ='HELLO').pack()
+		
+class BaseMenu(tk.Menu):
+	def __init__(self, master=None):
+		tk.Menu.__init__(self, master)
+		self.master=master
+		self.filemenu = []
+	def drawMenu(self):
+		self.filemenu.append(tk.Menu(self,tearoff=0))
+		self.filemenu.append(tk.Menu(self,tearoff=0))
+		self.add_cascade(label='File',menu=self.filemenu[0])
+		self.add_cascade(label='About',menu=self.filemenu[1])
+		self.master.config(menu=self)
 	
 		
 menu = MenuBase()
