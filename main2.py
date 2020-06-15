@@ -1,5 +1,6 @@
 import tkinter as tk
 from PIL import Image, ImageTk
+#import tkinter.tkk as tkk
 
 TITLETEXT = "Group 5\nAutomated Dice Roller"
 INTROTEXT = "Group 5 Members: Adrian Bashi, Christian Moriondo,\n"\
@@ -10,11 +11,13 @@ MESSAGEACCEL= "The dice roller machine must be placed on a relatively\n "\
 	"flat surface. The machine will now sense its orientation and\n"\
 	"if machine tilt is beyond specifications, operator must\n"\
 	"realign machine using adjustable feet."
+ACCELENTRY='HELLO'
 DICEFILE = "dice.png"
 DICEIMAGEDIM = 285
 ROOTSTARTDIM = 500
 POPUPWIDTH = 400
 POPUPHEIGHT = 100
+TILTDEGLIMIT = 5
 
 class  MenuBase(tk.Tk):
 	def __init__(self):
@@ -125,10 +128,46 @@ class AccelWindow(tk.Frame):
 	def __init__(self, master=None):
 		tk.Frame.__init__(self, master)
 		self.master = master
+		
+		self.upperframe = tk.Frame(self, borderwidth = 1)
+		self.lowerframe = tk.Frame(self)
+		
+		self.labelfront = tk.Label(self.upperframe, text='FRONT')
+		self.labelback = tk.Label(self.upperframe, text='BACK')
+		self.labelleft = tk.Label(self.upperframe, text='LEFT')
+		self.labelright = tk.Label(self.upperframe, text='RIGHT')
+		
+		self.x = tk.DoubleVar()
+		self.y = tk.DoubleVar()
+		self.x.set(0)
+		self.y.set(0)
+		
+		self.x_scale = tk.Scale(self.upperframe, from_=TILTDEGLIMIT,to=-TILTDEGLIMIT,
+			state='disabled',variable=self.x, digits = 3, resolution = 0.01)
+		self.y_scale = tk.Scale(self.upperframe, from_=TILTDEGLIMIT,to=-TILTDEGLIMIT,
+			state='disabled',variable=self.y, digits = 3, resolution = 0.01)
+			
+		self.entrytext = tk.StringVar()
+		
+		self.entrytext.set(ACCELENTRY)
+		self.Entry = tk.Entry(self.lowerframe, textvariable = self.entrytext, relief ='sunken',
+			state='disabled')
+		
 	def openFrame(self):
 		self.pack(fill='none',expand=1)
 		
-		tk.Label(self, text ='HELLO').pack()
+		self.upperframe.pack(side='top',fill='none',expand=1)
+		self.lowerframe.pack(side='bottom',fill='none',expand=1)
+		
+		self.labelfront.grid(row=0,column=0)
+		self.x_scale.grid(row=1,column=0)
+		self.labelback.grid(row=2,column=0)
+		
+		self.labelleft.grid(row=0,column=1)
+		self.y_scale.grid(row=1,column=1)
+		self.labelright.grid(row=2,column=1)
+		
+		self.Entry.pack()
 		
 class BaseMenu(tk.Menu):
 	def __init__(self, master=None):
