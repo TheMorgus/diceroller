@@ -1,0 +1,101 @@
+import tkinter as tk
+from PIL import Image, ImageTk
+
+TITLETEXT = "Group 5\nAutomated Dice Roller"
+INTROTEXT = "Group 5 Members: Adrian Bashi, Christian Moriondo,\nJason Mallon"\
+	"Jason Mallon, Kelly Castnon, Chris Kenneth Viray,\n"\
+	"Nathan Vore, Abigail Yaldo.\n\n"\
+	"Instructors: Shadi Alawneh, Steve Bazinski."
+MESSAGEACCEL= "The dice roller machine must be placed on a relatively\n "\
+	"flat surface. The machine will now sense its orientation and\n"\
+	"if machine tilt is beyond specifications, operator must\n"\
+	"realign machine using adjustable feet."
+DICEFILE = "dice.png"
+DICEIMAGEDIM = 285
+ROOTSTARTDIM = 500
+POPUPWIDTH = 400
+POPUPHEIGHT = 100
+
+class IntroWindow(tk.Frame):
+	def __init__(self, master=None):
+		tk.Frame.__init__(self, master)
+		self.master = master
+		self.pack(fill='none', expand=1)
+		
+		self.popupopen = 0
+		
+		self.title = tk.Label(self, text=TITLETEXT)
+		self.title.pack(side='top')
+		self.title.configure(font='times 20 bold italic')
+		
+		self.canvas = tk.Canvas(self, width=DICEIMAGEDIM, height=DICEIMAGEDIM)
+		self.canvas.pack(expand=1)
+		load = Image.open(DICEFILE)
+		self.render = ImageTk.PhotoImage(load)
+		self.canvas.create_image(DICEIMAGEDIM/2,DICEIMAGEDIM/2,
+			image=self.render)
+		
+		tk.Label(self, text = INTROTEXT).pack(side='top')
+		
+		self.buttonframe = tk.Frame(self)
+		self.buttonframe.pack(side='top')
+		
+		self.buttonstart = tk.Button(self.buttonframe, text = 'Start', 
+			command=self.nextframe)
+		self.buttonstart.pack(side='left')
+		self.buttonquit = tk.Button(self.buttonframe, text = 'Quit', 
+			command=self.quitprogram)
+		self.buttonquit.pack(side='right')
+	def quitprogram(self):
+		if self.popupopen == 1:
+			self.root2.destroy()
+		self.master.destroy()
+	def nextframe(self):
+		#self.destroy()
+		self.popupopen=1
+		self.buttonstart["state"] = 'disabled'
+		self.root2 = tk.Tk()
+		accel = AccelPopupWindow(self, self.root2)
+		accel.pack(expand=1)
+		global monitorwidth
+		global monitorheight
+		screen_width_center = int((monitorwidth-POPUPWIDTH)/2)
+		screen_height_center = int((monitorheight-POPUPHEIGHT)/2)
+		location = str(POPUPWIDTH) + 'x' + str(POPUPHEIGHT) + '+' \
+			+ str(screen_width_center) + '+' + str(screen_height_center)
+		self.root2.geometry(location)
+		self.popupopen=1
+		
+class AccelPopupWindow(tk.Frame):
+	def __init__(self, mainframe, master=None, ):
+		tk.Frame.__init__(self, master)
+		self.master = master
+		self.master.protocol("WM_DELETE_WINDOW", self.closewindow)
+		self.master.wm_title("Attention")
+		self.mainframe = mainframe
+		
+		self.message = tk.Label(self, text = MESSAGEACCEL)
+		self.message.pack(side='top')
+		
+		self.button = tk.Button(self, text='Continue', command=self.pushtiltframe)
+		self.button.pack(side='top')
+		
+	def closewindow(self):
+		self.mainframe.popupopen = 0
+		self.mainframe.buttonstart["state"]='normal'
+		self.master.destroy()
+	def pushtiltframe(self):
+		self.mainframe.popupopen = 0
+		self.master.destroy()
+		
+root = tk.Tk()
+monitorwidth = root.winfo_screenwidth()
+monitorheight = root.winfo_screenheight()
+intro = IntroWindow(root)
+root.wm_title("Automated Dice Roller")
+screen_width_center = int((monitorwidth-ROOTSTARTDIM)/2)
+screen_height_center = int((monitorheight-ROOTSTARTDIM)/2)
+location = str(ROOTSTARTDIM) + 'x' + str(ROOTSTARTDIM) + '+' \
+	+ str(screen_width_center) + '+' + str(screen_height_center)
+root.geometry(location)
+root.mainloop()
