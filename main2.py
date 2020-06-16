@@ -1,6 +1,11 @@
 import tkinter as tk
+import math
 from PIL import Image, ImageTk
-#import tkinter.tkk as tkk
+from threading import Thread
+from queue import Queue
+import time
+import accelerometer
+
 
 TITLETEXT = "Group 5\nAutomated Dice Roller"
 INTROTEXT = "Group 5 Members: Adrian Bashi, Christian Moriondo,\n"\
@@ -18,9 +23,16 @@ ROOTSTARTDIM = 500
 POPUPWIDTH = 400
 POPUPHEIGHT = 100
 TILTDEGLIMIT = 5
+CANVASDIM = 100
+CANVASCENTER = CANVASDIM/2
+CANVASHYP = 45
+ANGLEAMPLIFIER=9
+MAXDEGREE = 45/180*math.pi
+MAXY = CANVASHYP*math.sin(MAXDEGREE)
+MAXX = CANVASHYP*math.cos(MAXDEGREE)
 
 class  MenuBase(tk.Tk):
-	def __init__(self):
+	def __init__(self, accelqueue):
 		tk.Tk.__init__(self)
 		monitorwidth = self.winfo_screenwidth()
 		monitorheight = self.winfo_screenheight()
@@ -30,6 +42,10 @@ class  MenuBase(tk.Tk):
 		location = str(ROOTSTARTDIM) + 'x' + str(ROOTSTARTDIM) + '+' \
 			+ str(screen_width_center) + '+' + str(screen_height_center)
 		self.geometry(location)
+		self.runqueue = Queue()
+		self.accelqueue = accelqueue
+		self.x=0
+		self.y=0
 		
 		self.introwindow = IntroWindow(self)
 		self.accelwindow = AccelWindow(self)
@@ -42,6 +58,25 @@ class  MenuBase(tk.Tk):
 		self.introwindow.closeFrame()
 		self.accelwindow.openFrame()
 		self.menu.drawMenu()
+	def runAccel(self):
+		self.runqueue.put(True)
+		def thread_accel(threadname, runqueue, accelqueue):
+			while(runqueue.get()):
+				runqueue.put(True)
+				accelerometer.init_accel()
+				axes = accelerometer.get_axes(30)
+				accelqueue.put(axes)
+				while(not accelqueue.empty()):
+					time.sleep(0.0001)
+				time.sleep(0.00001)
+		accelthread=Thread(target=thread_accel,args=("Thread-2",self.runqueue,self.accelqueue))
+		accelthread.start()
+	def getAccelAxes(self):
+		axes = self.accelqueue.get()
+		self.x=axes[0]
+		self.y=axes[1]
+	def stopAccel(self):
+		self.runqueue.put(False)
 	def exit(self):
 		self.destroy()
 	def loop(self):
@@ -84,7 +119,6 @@ class IntroWindow(tk.Frame):
 	def closeFrame(self):
 			self.destroy()
 	def nextframe(self):
-		#self.destroy()
 		self.popupopen=1
 		self.buttonstart["state"] = 'disabled'
 		self.root2 = tk.Tk()
@@ -129,8 +163,10 @@ class AccelWindow(tk.Frame):
 		tk.Frame.__init__(self, master)
 		self.master = master
 		
-		self.upperframe = tk.Frame(self, borderwidth = 1)
-		self.lowerframe = tk.Frame(self)
+		self.upperframe = tk.Frame(self, highlightbackground='black',
+			highlightthickness=1)
+		self.lowerframe = tk.Frame(self, highlightbackground='black',
+			highlightthickness=1,bd = 150)
 		
 		self.labelfront = tk.Label(self.upperframe, text='FRONT')
 		self.labelback = tk.Label(self.upperframe, text='BACK')
@@ -147,27 +183,85 @@ class AccelWindow(tk.Frame):
 		self.y_scale = tk.Scale(self.upperframe, from_=TILTDEGLIMIT,to=-TILTDEGLIMIT,
 			state='disabled',variable=self.y, digits = 3, resolution = 0.01)
 			
-		self.entrytext = tk.StringVar()
+		self.labelbot = tk.Label(self.lowerframe, text = ACCELENTRY, relief ='sunken')
+		self.labelxcanvas = tk.Label(self.upperframe,text="Front-Back\nVertical Plane\n(amplified)")
+		self.labelycanvas = tk.Label(self.upperframe,text="Side\n Vertical Plane\n(amplified)")
 		
-		self.entrytext.set(ACCELENTRY)
-		self.Entry = tk.Entry(self.lowerframe, textvariable = self.entrytext, relief ='sunken',
-			state='disabled')
+		self.xcanvas = tk.Canvas(self.upperframe,width=CANVASDIM,height=CANVASDIM,highlightbackground='black',
+			highlightthickness=1)
+		self.ycanvas = tk.Canvas(self.upperframe,width=CANVASDIM,height=CANVASDIM,highlightbackground='black',
+			highlightthickness=1)
 		
 	def openFrame(self):
+		self.master.runAccel()
+		self.master.getAccelAxes()
+		
 		self.pack(fill='none',expand=1)
 		
 		self.upperframe.pack(side='top',fill='none',expand=1)
 		self.lowerframe.pack(side='bottom',fill='none',expand=1)
 		
-		self.labelfront.grid(row=0,column=0)
-		self.x_scale.grid(row=1,column=0)
-		self.labelback.grid(row=2,column=0)
+		self.labelfront.grid(row=0,column=1)
+		self.x_scale.grid(row=1,column=1)
+		self.labelback.grid(row=2,column=1)
 		
-		self.labelleft.grid(row=0,column=1)
-		self.y_scale.grid(row=1,column=1)
-		self.labelright.grid(row=2,column=1)
+		self.labelleft.grid(row=0,column=2)
+		self.y_scale.grid(row=1,column=2)
+		self.labelright.grid(row=2,column=2)
 		
-		self.Entry.pack()
+		self.xcanvas.grid(row=1,column=0)
+		self.ycanvas.grid(row=1,column=3)
+		self.labelxcanvas.grid(row=3,column=0,pady=10,padx=10)
+		self.labelycanvas.grid(row=3,column=3,pady=10,padx=10)
+		
+		self.drawFullCanvas(1)
+		self.labelbot.pack()
+		
+		self.loopAccel()
+	def drawCanvasLimits(self):
+		self.xcanvas.create_line(CANVASCENTER-MAXX,CANVASCENTER-MAXY,
+			CANVASCENTER+MAXX,CANVASCENTER+MAXY, fill="#f11")
+		self.xcanvas.create_line(CANVASCENTER-MAXX,CANVASCENTER+MAXY,
+			CANVASCENTER+MAXX,CANVASCENTER-MAXY, fill="#f11")
+		self.ycanvas.create_line(CANVASCENTER-MAXX,CANVASCENTER-MAXY,
+			CANVASCENTER+MAXX,CANVASCENTER+MAXY, fill="#f11")
+		self.ycanvas.create_line(CANVASCENTER-MAXX,CANVASCENTER+MAXY,
+			CANVASCENTER+MAXX,CANVASCENTER-MAXY, fill="#f11")
+	def clearCanvas(self):
+		self.xcanvas.delete('all')
+		self.ycanvas.delete('all')
+	def drawFullCanvas(self, dummy):
+		self.clearCanvas()
+		self.drawCanvasLimits()
+		
+		
+		
+		xangle = math.asin(self.master.x)
+		yangle = math.asin(self.master.y)
+		
+		self.x.set(xangle/math.pi*180)
+		self.y.set(yangle/math.pi*180)
+		
+		xangle=xangle*ANGLEAMPLIFIER
+		yangle=yangle*ANGLEAMPLIFIER
+		
+		x_vert = CANVASHYP*math.sin(xangle)
+		x_horz = CANVASHYP*math.cos(xangle)
+		y_vert = CANVASHYP*math.sin(yangle)
+		y_horz = CANVASHYP*math.cos(yangle)
+		
+		
+		
+		self.xcanvas.create_line(CANVASCENTER-x_horz,CANVASCENTER-x_vert,
+			CANVASCENTER+x_horz,CANVASCENTER+x_vert)
+		self.ycanvas.create_line(CANVASCENTER-y_horz,CANVASCENTER-y_vert,
+			CANVASCENTER+y_horz,CANVASCENTER+y_vert)
+	def loopAccel(self):
+		self.master.getAccelAxes()
+		self.x_scale.set(self.master.x)
+		self.y_scale.set(self.master.y)
+		self.after(150, self.loopAccel)
+		self.drawFullCanvas(1)
 		
 class BaseMenu(tk.Menu):
 	def __init__(self, master=None):
@@ -183,7 +277,12 @@ class BaseMenu(tk.Menu):
 			command=self.master.exit)
 		self.master.config(menu=self)
 	
-		
-menu = MenuBase()
-menu.loop()
+def thread_main(threadname, q):
+	menu = MenuBase(accelqueue)
+	menu.loop()
 
+
+accelqueue = Queue()
+mainthread=Thread(target=thread_main,args=("Thread-1",accelqueue))
+
+mainthread.start()
