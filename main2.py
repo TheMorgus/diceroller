@@ -21,6 +21,7 @@ ACCELENTRY='Side profile views give an exaggerated perspective of the devices cu
 	'for over 5 seconds.\n\n'\
 	'MAXIMUM AXIS ANGLE: 5 DEGREES'
 DICEFILE = "dice.png"
+PLACEHOLDERDICE = "rollerplaceholder.jpg"
 DICEIMAGEDIM = 285
 ROOTSTARTDIM = 500
 POPUPWIDTH = 400
@@ -29,6 +30,9 @@ TILTDEGLIMIT = 5
 CANVASDIM = 100
 CANVASCENTER = CANVASDIM/2
 CANVASHYP = 45
+CANVASESTIMATEHEIGHT=20
+CANVASESTIMATEWIDTH=200
+CANVASESTIMATEOFFSET=2
 ANGLEAMPLIFIER=9
 MAXDEGREE = 45/180*math.pi
 MAXY = CANVASHYP*math.sin(MAXDEGREE)
@@ -52,6 +56,7 @@ class  MenuBase(tk.Tk):
 		
 		self.introwindow = IntroWindow(self)
 		self.accelwindow = AccelWindow(self)
+		self.rollingwindow = rollingWindow(self)
 		self.menu =BaseMenu(self)
 		
 		self.pushIntroFrame()
@@ -78,6 +83,10 @@ class  MenuBase(tk.Tk):
 		axes = self.accelqueue.get()
 		self.x=axes[0]
 		self.y=axes[1]
+	def pushRollingFrame(self):
+		self.accelwindow.closeFrame()
+		self.destroythread()
+		self.rollingwindow.openFrame()
 	def exit(self):
 		self.destroy()
 		self.destroythread()
@@ -170,11 +179,10 @@ class AccelWindow(tk.Frame):
 		self.master = master
 		
 		self.upperframe = tk.Frame(self, highlightbackground='black',
-			highlightthickness=1)
+			highlightthickness=1, bd=10)
 		self.lowerframe = tk.Frame(self, highlightbackground='black',
-			highlightthickness=1)
-		self.buttonframe=tk.Frame(self.lowerframe,highlightbackground='black',
-			highlightthickness=1)
+			highlightthickness=1,pady=10, bd=10)
+		self.buttonframe=tk.Frame(self.lowerframe, pady=10)
 			
 		#self.entry = tk.Entry(self.lowerframe.text=ACCELENTRY)
 		
@@ -205,14 +213,15 @@ class AccelWindow(tk.Frame):
 		
 		self.buttonnext = tk.Button(self.buttonframe,text='Next(4)',state='disabled')
 		self.buttonquit = tk.Button(self.buttonframe,text='Quit')
-		self.buttonskip = tk.Button(self.buttonframe,text='Skip')
+		self.buttonskip = tk.Button(self.buttonframe,text='Skip',
+			command=self.master.pushRollingFrame)
 	def openFrame(self):
 		self.master.runAccel()
 		self.master.getAccelAxes()
 		
 		self.pack(fill='none',expand=1)
 		
-		self.upperframe.pack(side='top',fill='none',expand=1)
+		self.upperframe.pack(side='top',fill='none',expand=0)
 		self.lowerframe.pack(side='bottom',fill='none',expand=1)
 		self.buttonframe.pack(side='bottom',fill='none',expand=1)
 		
@@ -281,7 +290,93 @@ class AccelWindow(tk.Frame):
 		self.y_scale.set(self.master.y)
 		self.after(150, self.loopAccel)
 		self.drawFullCanvas(1)
+	def closeFrame(self):
+		self.destroy()
+class rollingWindow(tk.Frame):
+	def __init__(self, master=None):
+		tk.Frame.__init__(self, master)
+		self.master = master
 		
+		self.upperframe = tk.Frame(self.master)
+		self.lowerframe = tk.Frame(self.master,highlightbackground='black',
+			highlightthickness=1, bd=10)
+		
+		self.upperleftframe = tk.Frame(self.upperframe,highlightbackground='black',
+			highlightthickness=1, bd=10)
+		self.uppermiddleframe = tk.Frame(self.upperframe)
+		self.upperrightframe = tk.Frame(self.upperframe,highlightbackground='black',
+			highlightthickness=1, bd=10)
+		self.lowerupperframe=tk.Frame(self.lowerframe)
+		self.lowerlowerframe=tk.Frame(self.lowerframe)
+		self.timeremainingframe=tk.Frame(self.lowerlowerframe)
+		self.buttonframe=tk.Frame(self.lowerframe)
+		
+		
+		self.timeSlider=tk.Canvas(self.timeremainingframe,height=CANVASESTIMATEHEIGHT,
+			width=CANVASESTIMATEWIDTH,highlightbackground='black',highlightthickness=1)
+		
+		self.labelDiceImage = tk.Label(self.uppermiddleframe, text='DICE CAPTURE')
+		self.labelListBox = tk.Label(self.upperrightframe, text='Last 10 Rolls')
+		self.labelDiceRolled = tk.Label(self.upperleftframe, text='DICE ROLLED: [6,3]')
+		self.labelRollNumber = tk.Label(self.upperleftframe, text='CURRENT ROLL #: 50')
+		self.labelTotalRolls = tk.Label(self.upperleftframe, text='TOTAL ROLLS:1000')
+		self.labelTimeLeft = tk.Label(self.lowerupperframe, text='ESTIMATED TIME REMAINING')
+		self.labelTimeClock = tk.Label(self.timeremainingframe, text='58min 23sec')
+		
+		self.diceList = tk.Listbox(self.upperrightframe, selectmode='single',width=8)
+		self.img = ImageTk.PhotoImage(Image.open(PLACEHOLDERDICE))
+		self.panel = tk.Label(self.uppermiddleframe, image=self.img)
+		
+		self.buttonStart = tk.Button(self.buttonframe,text='Start',state='disabled')
+		self.buttonPause = tk.Button(self.buttonframe,text='Pause')
+		self.buttonStop = tk.Button(self.buttonframe,text='Stop')
+		self.buttonQuit = tk.Button(self.buttonframe,text='Quit',command=self.master.exit)
+	def openFrame(self):
+		self.upperframe.pack()
+		self.lowerframe.pack()
+		
+		self.upperleftframe.pack(side='left')
+		self.uppermiddleframe.pack(side='left')
+		self.upperrightframe.pack(side='left')
+		
+		self.lowerupperframe.pack(side='top')
+		self.lowerlowerframe.pack(side='top')
+		self.timeremainingframe.pack(side='top')
+		self.buttonframe.pack(side='top')
+		
+		self.labelDiceImage.pack(side='top')
+		self.labelListBox.pack(side='top')
+		self.labelDiceRolled.pack(side='top',pady=15)
+		self.labelRollNumber.pack(side='top',pady=15)
+		self.labelTotalRolls.pack(side='top',pady=15)
+		self.labelTimeLeft.pack(side='top')
+		self.labelTimeClock.pack(side='right')
+		
+		self.diceList.pack(side='top')
+		self.panel.pack(side='top')
+		
+		self.timeSlider.pack(side='left')
+		
+		
+		self.diceList.insert(0,'  1:[1,3]')
+		self.diceList.insert(1,'  2:[5,3]')
+		self.diceList.insert(2,'  3:[1,4]')
+		self.diceList.insert(3,'  4:[6,6]')
+		self.diceList.insert(4,'  5:[2,6]')
+		self.diceList.insert(5,'  6:[1,2]')
+		self.diceList.insert(6,'  7:[6,2]')
+		self.diceList.insert(7,'  8:[5,5]')
+		self.diceList.insert(8,'  9:[2,5]')
+		self.diceList.insert(9,' 10:[2,1]')
+		
+		self.buttonStart.pack(side='left')
+		self.buttonPause.pack(side='left')
+		self.buttonStop.pack(side='left')
+		self.buttonQuit.pack(side='left')
+		
+		self.timeSlider.create_rectangle(0,CANVASESTIMATEOFFSET,
+			CANVASESTIMATEWIDTH/3,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')
+				
 class BaseMenu(tk.Menu):
 	def __init__(self, master=None):
 		tk.Menu.__init__(self, master)
@@ -292,6 +387,10 @@ class BaseMenu(tk.Menu):
 		self.filemenu.append(tk.Menu(self,tearoff=0))
 		self.add_cascade(label='File',menu=self.filemenu[0])
 		self.add_cascade(label='About',menu=self.filemenu[1])
+		self.filemenu[0].add_command(label="Save", accelerator='(F5)',
+			command=self.master.exit)
+		self.filemenu[0].add_command(label="Load", accelerator='(F6)',
+			command=self.master.exit)
 		self.filemenu[0].add_command(label="Exit", accelerator='(Crtl + X)',
 			command=self.master.exit)
 		self.master.config(menu=self)
