@@ -16,7 +16,10 @@ MESSAGEACCEL= "The dice roller machine must be placed on a relatively\n "\
 	"flat surface. The machine will now sense its orientation and\n"\
 	"if machine tilt is beyond specifications, operator must\n"\
 	"realign machine using adjustable feet."
-ACCELENTRY='HELLO'
+ACCELENTRY='Side profile views give an exaggerated perspective of the devices current orientation.\n'\
+	'Using the adjustable feet, change orientation until the device can remain in specified\n'\
+	'for over 5 seconds.\n\n'\
+	'MAXIMUM AXIS ANGLE: 5 DEGREES'
 DICEFILE = "dice.png"
 DICEIMAGEDIM = 285
 ROOTSTARTDIM = 500
@@ -69,18 +72,21 @@ class  MenuBase(tk.Tk):
 				while(not accelqueue.empty()):
 					time.sleep(0.0001)
 				time.sleep(0.00001)
-		accelthread=Thread(target=thread_accel,args=("Thread-2",self.runqueue,self.accelqueue))
-		accelthread.start()
+		self.accelthread=Thread(target=thread_accel,args=("Thread-1",self.runqueue,self.accelqueue))
+		self.accelthread.start()
 	def getAccelAxes(self):
 		axes = self.accelqueue.get()
 		self.x=axes[0]
 		self.y=axes[1]
-	def stopAccel(self):
-		self.runqueue.put(False)
 	def exit(self):
 		self.destroy()
+		self.destroythread()
 	def loop(self):
 		self.mainloop()
+	def destroythread(self):
+		self.runqueue.get()
+		self.runqueue.put(False)
+		self.accelqueue.get()
 class IntroWindow(tk.Frame):
 	def __init__(self, master=None):
 		tk.Frame.__init__(self, master)
@@ -166,7 +172,11 @@ class AccelWindow(tk.Frame):
 		self.upperframe = tk.Frame(self, highlightbackground='black',
 			highlightthickness=1)
 		self.lowerframe = tk.Frame(self, highlightbackground='black',
-			highlightthickness=1,bd = 150)
+			highlightthickness=1)
+		self.buttonframe=tk.Frame(self.lowerframe,highlightbackground='black',
+			highlightthickness=1)
+			
+		#self.entry = tk.Entry(self.lowerframe.text=ACCELENTRY)
 		
 		self.labelfront = tk.Label(self.upperframe, text='FRONT')
 		self.labelback = tk.Label(self.upperframe, text='BACK')
@@ -184,14 +194,18 @@ class AccelWindow(tk.Frame):
 			state='disabled',variable=self.y, digits = 3, resolution = 0.01)
 			
 		self.labelbot = tk.Label(self.lowerframe, text = ACCELENTRY, relief ='sunken')
+		
 		self.labelxcanvas = tk.Label(self.upperframe,text="Front-Back\nVertical Plane\n(amplified)")
-		self.labelycanvas = tk.Label(self.upperframe,text="Side\n Vertical Plane\n(amplified)")
+		self.labelycanvas = tk.Label(self.upperframe,text="Side-by-Side\n Vertical Plane\n(amplified)")
 		
 		self.xcanvas = tk.Canvas(self.upperframe,width=CANVASDIM,height=CANVASDIM,highlightbackground='black',
 			highlightthickness=1)
 		self.ycanvas = tk.Canvas(self.upperframe,width=CANVASDIM,height=CANVASDIM,highlightbackground='black',
 			highlightthickness=1)
 		
+		self.buttonnext = tk.Button(self.buttonframe,text='Next(4)',state='disabled')
+		self.buttonquit = tk.Button(self.buttonframe,text='Quit')
+		self.buttonskip = tk.Button(self.buttonframe,text='Skip')
 	def openFrame(self):
 		self.master.runAccel()
 		self.master.getAccelAxes()
@@ -200,6 +214,7 @@ class AccelWindow(tk.Frame):
 		
 		self.upperframe.pack(side='top',fill='none',expand=1)
 		self.lowerframe.pack(side='bottom',fill='none',expand=1)
+		self.buttonframe.pack(side='bottom',fill='none',expand=1)
 		
 		self.labelfront.grid(row=0,column=1)
 		self.x_scale.grid(row=1,column=1)
@@ -216,6 +231,10 @@ class AccelWindow(tk.Frame):
 		
 		self.drawFullCanvas(1)
 		self.labelbot.pack()
+		
+		self.buttonnext.pack(side='left',fill='none',expand=1)
+		self.buttonquit.pack(side='left',fill='none',expand=1)
+		self.buttonskip.pack(side='left',fill='none',expand=1)
 		
 		self.loopAccel()
 	def drawCanvasLimits(self):
@@ -277,12 +296,11 @@ class BaseMenu(tk.Menu):
 			command=self.master.exit)
 		self.master.config(menu=self)
 	
-def thread_main(threadname, q):
-	menu = MenuBase(accelqueue)
-	menu.loop()
+
 
 
 accelqueue = Queue()
-mainthread=Thread(target=thread_main,args=("Thread-1",accelqueue))
-
-mainthread.start()
+#mainthread=Thread(target=thread_main,args=("Thread-1",accelqueue))
+#mainthread.start()
+menu = MenuBase(accelqueue)
+menu.loop()
