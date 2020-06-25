@@ -4,7 +4,7 @@ from PIL import Image, ImageTk
 from threading import Thread
 from queue import Queue
 import time
-import accelerometer
+import MPU6050 as accelerometer
 
 
 TITLETEXT = "Group 5\nAutomated Dice Roller"
@@ -54,6 +54,12 @@ class  MenuBase(tk.Tk):
 		self.x=0
 		self.y=0
 		
+		
+		accelerometer.bus = accelerometer.smbus.SMBus(1) 	# or bus = smbus.SMBus(0) for older version boards
+		accelerometer.Device_Address = 0x68
+		
+		accelerometer.MPU_Init()
+		
 		self.introwindow = IntroWindow(self)
 		self.accelwindow = AccelWindow(self)
 		self.rollingwindow = rollingWindow(self)
@@ -71,12 +77,11 @@ class  MenuBase(tk.Tk):
 		def thread_accel(threadname, runqueue, accelqueue):
 			while(runqueue.get()):
 				runqueue.put(True)
-				accelerometer.init_accel()
-				axes = accelerometer.get_axes(30)
+				axes = accelerometer.getAxes(10)
 				accelqueue.put(axes)
 				while(not accelqueue.empty()):
-					time.sleep(0.0001)
-				time.sleep(0.00001)
+					time.sleep(0.030)
+				time.sleep(0.030)
 		self.accelthread=Thread(target=thread_accel,args=("Thread-1",self.runqueue,self.accelqueue))
 		self.accelthread.start()
 	def getAccelAxes(self):
@@ -288,7 +293,7 @@ class AccelWindow(tk.Frame):
 		self.master.getAccelAxes()
 		self.x_scale.set(self.master.x)
 		self.y_scale.set(self.master.y)
-		self.after(150, self.loopAccel)
+		self.after(130, self.loopAccel)
 		self.drawFullCanvas(1)
 	def closeFrame(self):
 		self.destroy()
