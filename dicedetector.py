@@ -35,26 +35,7 @@ def showDiceArea(image):
 	img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 	ret,thresh=cv2.threshold(image,1,255,cv2.THRESH_BINARY)
 	return thresh
-def revealSymbols(image, symbolcolor,hadjustlow=10,slow=50,vlow=50,\
-	hadjusthigh=10,shigh=255,vhigh=255):
-	imagehsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-	h = symbolcolor[0,0,0]
-	#s = bgcolor[0,0,1]
-	#v = bgcolor[0,0,2]
-	
-	low_background = np.array([100,15,110])
-	high_background = np.array([135,65,195])
-	mask = cv2.inRange(imagehsv, low_background, high_background)
-	#mask = cv2.bitwise_not(mask)
-	res = cv2.bitwise_and(image,image,mask=mask)
-	#Basic filtering and noise reduction
-	#kernel = np.ones((5,5),np.float32)/25
-	#res = cv2.filter2D(res,-1,kernel)
-	#kernel = np.ones((5,5),np.uint8)
-	#res = cv2.morphologyEx(res, cv2.MORPH_OPEN,kernel)
-	
-	return res
-	
+
 def clickColor(event, x, y, flags, param):
 	global refPt
 	global img
