@@ -5,7 +5,12 @@ import numpy as np
 ORANGE = np.uint8([[[0,140,255]]])
 HSV_ORANGE = cv2.cvtColor(ORANGE, cv2.COLOR_BGR2HSV)
 
-def removeBackground(image, bgcolor,hadjustlow=10,slow=50,vlow=50,\
+FONT=cv2.FONT_HERSHEY_SIMPLEX
+FONTSCALE=2
+FONTCOLOR=(180,50,50)
+LINETYPE=2
+OFFSET=10
+def removeBackground(image, bgcolor,hadjustlow=10,slow=100,vlow=100,\
 	hadjusthigh=10,shigh=255,vhigh=255):
 	imagehsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 	h = bgcolor[0,0,0]
@@ -16,14 +21,16 @@ def removeBackground(image, bgcolor,hadjustlow=10,slow=50,vlow=50,\
 	high_background = np.array([h+hadjusthigh,shigh,vhigh])
 	mask = cv2.inRange(imagehsv, low_background, high_background)
 	mask = cv2.bitwise_not(mask)
-	res = cv2.bitwise_and(img,img,mask=mask)
-	_,res22=cv2.threshold(res,5,255,cv2.THRESH_BINARY)
+	kernel = np.ones((5,5),np.uint8)
+	mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,kernel)
 	#Basic filtering and noise reduction
-	#kernel = np.ones((5,5),np.float32)/25
-	#res = cv2.filter2D(res,-1,kernel)
-	#kernel = np.ones((5,5),np.uint8)
-	#res = cv2.morphologyEx(res, cv2.MORPH_OPEN,kernel)
-	return res22
+	kernel = np.ones((5,5),np.float32)/25
+	mask = cv2.filter2D(mask,-1,kernel)
+	kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(9,9))
+	mask=cv2.dilate(mask,kernel)
+	_,mask=cv2.threshold(mask,1,255,cv2.THRESH_BINARY)
+	res = cv2.bitwise_and(img,img,mask=mask)
+	return res,mask
 def showDiceArea(image):
 	img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 	ret,thresh=cv2.threshold(image,1,255,cv2.THRESH_BINARY)
@@ -35,8 +42,8 @@ def revealSymbols(image, symbolcolor,hadjustlow=10,slow=50,vlow=50,\
 	#s = bgcolor[0,0,1]
 	#v = bgcolor[0,0,2]
 	
-	low_background = np.array([100,10,110])
-	high_background = np.array([135,55,185])
+	low_background = np.array([100,15,110])
+	high_background = np.array([135,65,195])
 	mask = cv2.inRange(imagehsv, low_background, high_background)
 	#mask = cv2.bitwise_not(mask)
 	res = cv2.bitwise_and(image,image,mask=mask)
@@ -47,13 +54,6 @@ def revealSymbols(image, symbolcolor,hadjustlow=10,slow=50,vlow=50,\
 	#res = cv2.morphologyEx(res, cv2.MORPH_OPEN,kernel)
 	
 	return res
-refPt = []
-def filterImage(img):
-	kernel = np.ones((5,5),np.float32)/25
-	res = cv2.filter2D(img,-1,kernel)
-	kernel = np.ones((5,5),np.uint8)
-	res = cv2.morphologyEx(img, cv2.MORPH_OPEN,kernel)
-	return res
 	
 def clickColor(event, x, y, flags, param):
 	global refPt
@@ -62,93 +62,120 @@ def clickColor(event, x, y, flags, param):
 		refPt=[(x,y)]
 		print(refPt)
 		print(res[y,x])
-		
-img = cv2.imread('dicetestingimage.jpg', -1)
-template=cv2.imread('dicetemplatefive.jpg')
-#img = filterImage(img)
 
-res = removeBackground(img,HSV_ORANGE,hadjustlow=10,hadjusthigh=10)
-
-#res = revealSymbols(img,HSV_ORANGE)
-#res=filterImage(res)
-#res = showDiceArea(res)
-#res=filterImage(res)
-
-gray = cv2.cvtColor(res,cv2.COLOR_BGR2GRAY)
-res = cv2.Canny(gray,500,1000,apertureSize=3) #EDGES
-kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(9,9))
-res=cv2.dilate(res,kernel)
-ret,thresh=cv2.threshold(res,5,255,cv2.THRESH_BINARY)
-_,contours,_=cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-contours2=[]
-for cnt in contours:
-	#print(cv2.contourArea(cnt))
-	if(cv2.contourArea(cnt)>7800)and(cv2.contourArea(cnt)<8700):
-		contours2.append(cnt)
-warped=[]
-for cnt in contours2:
-	print(cv2.contourArea(cnt))	
-	rect=cv2.minAreaRect(cnt)
-	box=cv2.boxPoints(rect)
-	box=np.int0(box)
-	cv2.drawContours(img,[box],0,(30,100,100),3)
+def isolateDice(diceimage,mainimg):
+	diceimage = cv2.cvtColor(diceimage, cv2.COLOR_BGR2GRAY)
+	_,contours,_=cv2.findContours(diceimage,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+	contours2=[]
+	for cnt in contours:
+		#print(cv2.contourArea(cnt))
+		if(cv2.contourArea(cnt)>3000)and(cv2.contourArea(cnt)<4000):
+			contours2.append(cnt)
+	warped=[]
+	rects=[]
+	for cnt in contours2:
+		rect=cv2.minAreaRect(cnt)
+		rects.append(rect)
+		box=cv2.boxPoints(rect)
+		box=np.int0(box)
+		cv2.drawContours(img,[box],0,(30,100,100),3)
 	
-	width=int(rect[1][0])
-	height=int(rect[1][1])
+		width=int(rect[1][0])
+		height=int(rect[1][1])
 	
-	src_pts=box.astype("float32")
-	dst_pts=np.array([[0,height-1],
-		[0,0],
-		[width-1,0],
-		[width-1,height-1]],dtype="float32")
-	M=cv2.getPerspectiveTransform(src_pts,dst_pts)
-	warped.append(cv2.warpPerspective(img,M,(width,height)))
-#cv2.drawContours(img,contours2,-1,(30,100,100),3)
+		src_pts=box.astype("float32")
+		dst_pts=np.array([[0,height-1],
+			[0,0],
+			[width-1,0],
+			[width-1,height-1]],dtype="float32")
+		M=cv2.getPerspectiveTransform(src_pts,dst_pts)
+		warped.append(cv2.warpPerspective(img,M,(width,height)))
+	return warped,rects
 
-"""
+def rotateImg(img,angle):
+	height,width,_ = img.shape
+	M=cv2.getRotationMatrix2D((width/2,height/2),angle,1)
+	res=cv2.warpAffine(img,M,(width,height))
+	return res
+def createRotatedTemplates(basetemplate):
+	template=[]
+	template.append(basetemplate)
+	for x in range(1,4):
+		template.append(rotateImg(basetemplate,90*x))
+	return template
+def getTemplates():
+	dicetemplates = []
+	template=cv2.imread('dicetest/white/templateone.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	template=cv2.imread('dicetest/white/templatetwo.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	template=cv2.imread('dicetest/white/templatethree.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	template=cv2.imread('dicetest/white/templatefour.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	template=cv2.imread('dicetest/white/templatefive.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	template=cv2.imread('dicetest/white/templatesix.jpg')
+	template = cv2.pyrDown(template)
+	template = cv2.pyrDown(template)
+	dicetemplates.append(template)
+	return dicetemplates
+def completeTemplates(templates):
+	completeTemplates =[]
+	for x in range(6):
+		completeTemplates.append(createRotatedTemplates(templates[x]))
+	return completeTemplates
+def discernDice(templatearray,dicearray,mainimg):
+	dicevals=[]
+	for dice in dicearray:
+		minarray=[]
+		for dicetemplatearray in templatearray:
+			minvals=[]
+			for dicetemplate in dicetemplatearray:
+				search=cv2.matchTemplate(dice,dicetemplate,cv2.TM_SQDIFF)
+				minval,_,_,_=cv2.minMaxLoc(search)
+				minvals.append(minval)
+			minarray.append(min(minvals))
+		index=minarray.index(min(minarray))
+		dicevals.append(index+1) #aopends the value of dice with the lowest value (which is associated with the highest match between template and image)
+	return dicevals
+def drawDiceVals(dicevals,rects,mainimg):
+	x=0
+	for val in dicevals:
+		cv2.putText(mainimg,str(val),
+		(int(rects[x][0][0])+OFFSET,int(rects[x][0][1])-OFFSET),
+		FONT,
+		FONTSCALE,
+		FONTCOLOR,
+		LINETYPE)
+		x=x+1
+img = cv2.imread('dicetest/white/white2cropped.jpg', -1)
+img = cv2.pyrDown(img)
+img = cv2.pyrDown(img)
 
+refPt = []	
 
-w,h,_=template.shape
-increment=5
+isodiceimg,mask = removeBackground(img,HSV_ORANGE,hadjustlow=10,hadjusthigh=10)
 
-min_val=[]
-max_val=[]
-min_loc=[]
-max_loc=[]
-
-for x in range(int(360/increment)):
-	print(x)
-	m=cv2.getRotationMatrix2D((h/2,w/2),x*increment,1)
-	templatetemp=cv2.warpAffine(template,m,(h,w))
-	im=cv2.matchTemplate(res,templatetemp,cv2.TM_SQDIFF)
-	minval,maxval,minloc,maxloc=cv2.minMaxLoc(im)
-	min_val.append(minval)
-	max_val.append(maxval)
-	min_loc.append(minloc)
-	max_loc.append(maxloc)
-#m=cv2.getRotationMatrix2D((h/2,w/2),35,1)
-#template=cv2.warpAffine(template,m,(h,w))
-#res=cv2.matchTemplate(res,template,cv2.TM_SQDIFF)
-#min_val,max_val,min_loc,max_loc=cv2.minMaxLoc(res)
-
-minimum=min(min_val)
-index=min_val.index(minimum)
-print(index)
-top_left=min_loc
-bottom_right=(top_left[0]+w,top_left[1]+h)
-cv2.rectangle(img,top_left,bottom_right,255,2)
-"""
-#img = cv2.pyrDown(img)
-a=revealSymbols(warped[4],HSV_ORANGE)
-res=cv2.cvtColor(a,cv2.COLOR_BGR2GRAY)
-ret,thresh=cv2.threshold(res,5,255,cv2.THRESH_BINARY)
-cv2.imshow('image',thresh)
+dicearray,rects=isolateDice(isodiceimg,img)
+templates = getTemplates()
+templates = completeTemplates(templates)
+dicevals=discernDice(templates,dicearray,img)
+drawDiceVals(dicevals,rects,img)
+cv2.imshow('image',img)
 
 cv2.namedWindow("image")
 cv2.setMouseCallback("image",clickColor)
-
-#np.set_printoptions(threshold=sys.maxsize)
-#print(res[1])
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
