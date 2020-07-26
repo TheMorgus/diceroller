@@ -44,7 +44,12 @@ def clickColor(event, x, y, flags, param):
 		refPt=[(x,y)]
 		print(refPt)
 		print(img[y,x])
-
+def clickPoint(event, x, y, flags, param):
+	global refPt
+	global img
+	if event == cv2.EVENT_LBUTTONDOWN:
+		refPt=[(x,y)]
+		#print(refPt)
 def isolateDice(diceimage,mainimg):
 	diceimage = cv2.cvtColor(diceimage, cv2.COLOR_BGR2GRAY)
 	_,contours,_=cv2.findContours(diceimage,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
@@ -139,7 +144,7 @@ def drawDiceVals(dicevals,rects,mainimg):
 		FONTCOLOR,
 		LINETYPE)
 		x=x+1
-def nothing(x):
+def clickAndCrop(x):
 	pass
 #Function takes the base image of the dice space
 #then provides a GUI that allows the user to calibrate the color thresholding
@@ -212,31 +217,93 @@ def calibrateMask(img,hhigh=5,hlow=15,shigh=255,slow=40,vhigh=40,vlow=255):
 	cv2.destroyWindow('image')
 	cv2.destroyWindow('trackbars')	
 	return threshold
-		
-		
-		
-img = cv2.imread('dicetest/numbers/number3cropped.jpg', -1)
-img = resizeImage(img)
+def calibrateMask2(img,hhigh=5,hlow=15,shigh=255,slow=40,vhigh=40,vlow=255):
+	#HSV color is ideal for masking, as it is resistance to shadow and lighting
+	#effects for filter colors. As a result, image converted to HSV color space
+	#for filtering background colors from dice colors
+	imagehsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	
+	#Creates a blank image (all black)
+	#Size of this image determines the length of the trackbars in trackbar
+	#window
+	blankimg = np.array([0,0,0])
+	row=1
+	col=400
+	blankimg=np.full((row,col,3),blankimg)
+	
+	low_background = np.array([hlow,slow,vlow])
+	high_background = np.array([hhigh,shigh,vhigh])
+	mask = cv2.inRange(imagehsv, low_background, high_background)
+	mask = cv2.bitwise_not(mask)
+	kernel = np.ones((5,5),np.uint8)
+	mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,kernel)
+	kernel = np.ones((5,5),np.float32)/25
+	mask = cv2.filter2D(mask,-1,kernel)
+	
+	res = cv2.bitwise_and(img,img,mask=mask)
 
-colorthreshold=calibrateMask(img)
-refPt = []	
+	return(mask)
+	
+def selectAndCrop(img):
+	img = img.copy()
+	cv2.imshow('image',img)
+	cv2.namedWindow("image")
+	cv2.setMouseCallback("image",clickPoint)
+	points=[None,None]
+	global refPt
+	while(1):
+		cv2.imshow('image',img)
+		if refPt[0]==(None,None):
+			pass
+		elif points[0]==None:
+			points[0]=refPt[0]
+			refPt = [(None,None)]
+		else:
+			points[1]=refPt[0]
+			refPt = [(None,None)]
+			width = abs(points[1][0]-points[0][0]) #Width = Height so template is a complete square
+			startx=points[0][0]					   #This allows 90* rotations with zero image loss
+			starty=points[0][1]
+			if startx>points[1][0]:
+				startx=points[1][0]
+			if starty>points[1][1]:
+				starty=points[1][1]
+			img=img[starty:starty+width,startx:startx+width]
+			break
+		k=cv2.waitKey(1)&0xFF
+		if k==27:
+			break
+	return img
+def imageSize(img):
+	x,y,_=img.shape
+	return x,y		
+if __name__=="__main__":
+	img = cv2.imread('dicetest/numbers/number3cropped.jpg', -1)
+	img = resizeImage(img)
+	#colorthreshold=calibrateMask(img)
+	refPt = [(None,None)]	
+	
+	#cv2.imshow('image',img)
+	im=selectAndCrop(img)
+	cv2.imshow('image',im)
+	"""
+	isodiceimg,mask = removeBackground(img,HSV_ORANGE,hadjustlow=10,hadjusthigh=10)
 
-isodiceimg,mask = removeBackground(img,HSV_ORANGE,hadjustlow=10,hadjusthigh=10)
 
-dicearray,rects=isolateDice(isodiceimg,img)
-templates = getTemplates()
-templates = completeTemplates(templates)
-#e1=cv2.getTickCount() Measuring performance, for 6 dice takes around 0.12 seconds to analyze an image
-dicevals=discernDice(templates,dicearray,img)
-drawDiceVals(dicevals,rects,img)
-#e2=cv2.getTickCount()
-#time=(e2-e1)/cv2.getTickFrequency()
-#print(time)
-cv2.imshow('image',img)
+	dicearray,rects=isolateDice(isodiceimg,img)
+	templates = getTemplates()
+	templates = completeTemplates(templates)
+	#e1=cv2.getTickCount() Measuring performance, for 6 dice takes around 0.12 seconds to analyze an image
+	dicevals=discernDice(templates,dicearray,img)
+	drawDiceVals(dicevals,rects,img)
+	#e2=cv2.getTickCount()
+	#time=(e2-e1)/cv2.getTickFrequency()
+	#print(time)
+	cv2.imshow('image',img)
+	"""
+	#For debugging purposes (finding colors based on mouseclick on displayed image)
+	cv2.namedWindow("image")
+	cv2.setMouseCallback("image",clickColor)
 
-#For debugging purposes (finding colors based on mouseclick on displayed image)
-cv2.namedWindow("image")
-cv2.setMouseCallback("image",clickColor)
-
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()

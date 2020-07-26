@@ -10,7 +10,7 @@ DIRECTIONSCOLORCAILBRATION='Directions: Place a set of dice in the image capture
 								  'then adjust Hue,Saturation,and Lightness thresholds until:\n'+\
 								  '1)Dice Box is uniform white with little to no black holes\n'+\
 								  '2)Dice Boxes are as closely approximated to a square as possible'
-DIRECTIONSBACKGROUNDCROP='DIRECTIONS: Get a capture of the empty bord space, then\n'+\
+DIRECTIONSBACKGROUNDCROP='DIRECTIONS: Get a capture of the empty board space, then\n'+\
 						 'press "Get Threshold Base" button to get new thresholds \n'+\
 						 'for background color filtering. When finished, press "Next"\n'+\
 						 'button, and calibration of threshold values will be finalized.\n'+\
@@ -19,7 +19,7 @@ DIRECTIONSBACKGROUNDCROP='DIRECTIONS: Get a capture of the empty bord space, the
 #as a base, the user is able to further refine the background filtering with
 #the dice to be tested on the rolling space. This feature is mandatory to ensure
 #a proper dice square is isolated for proper dice recognition algorimth operation
-class colorThresholdingWindow(tk.Frame):
+class ColorThresholdingWindow(tk.Frame):
 	def __init__(self, master,baseimg,baseimgpil,maskimg):
 		tk.Frame.__init__(self, master)
 		self.master = master
@@ -44,7 +44,7 @@ class colorThresholdingWindow(tk.Frame):
 		self.headers.append(tk.Label(self.upperFrames[1],
 							text='SATURATION'))
 		self.headers.append(tk.Label(self.upperFrames[2],
-							text='LIGHTNESS'))
+							text='VALUE'))
 		huelabels=[]
 		satlabels=[]
 		lightlabels=[]
@@ -156,7 +156,7 @@ class colorThresholdingWindow(tk.Frame):
 #for background filtering using an image of an empty rolling space.
 #These values can be further refined later in the colorThresholdingWindow
 #using actual dice to ensure solution works in a realistic rolling setting.
-class backgroundCropWindow(tk.Frame):
+class BackgroundCropWindow(tk.Frame):
 	def __init__(self, master,baseimg,backgroundimg):
 		tk.Frame.__init__(self, master)
 		self.master = master
@@ -185,7 +185,7 @@ class backgroundCropWindow(tk.Frame):
 								tk.Label(self.middleframe,text='LOW')],
 							   [tk.Label(self.middleframe,text='HUE'),
 								tk.Label(self.middleframe,text='SAT'),
-								tk.Label(self.middleframe,text='LIGHT')]]
+								tk.Label(self.middleframe,text='VALUE')]]
 		
 		self.thresholdlabels=[[None,None],#made because you need to construct an array
 							  [None,None],#already populated with values to assign
@@ -262,7 +262,7 @@ class backgroundCropWindow(tk.Frame):
 			for y in range(2):
 				self.thresholdvars[x][y].set(str(self.thresholdvals[x][y])) #update labels with values	
 		self.nextbutton.configure(state='normal') #enables button for next window
-class rollingSetupWindow(tk.Frame):
+class RollingSetupWindow(tk.Frame):
 	def __init__(self, master):
 		tk.Frame.__init__(self, master)
 		self.master = master
@@ -375,22 +375,81 @@ def cv2pil(img):
 	new_img=Image.fromarray(new_img)
 	new_img=ImageTk.PhotoImage(image=new_img)
 	return new_img
-	
+class TemplateCreationWindow(tk.Frame):
+	def __init__(self,master,baseimg,img):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		self.img=img
+		self.imagesize=dicedetector.imageSize(baseimg)
+		self.points=[(None,None),(None,None)]
+		self.upperframe=tk.Frame(self)
+		self.upperframes=[tk.Frame(self.upperframe),#Holds the upper left variable frame, 
+						  tk.Frame(self.upperframe)]#and the upper right dice template frame
+		self.lowerframe=tk.Frame(self)	#Frame for buttons
+		
+		self.canvasframe=tk.Frame(self.upperframes[0]) #One of two variable frames, holds image of dice to be cropped to make template
+		self.templateadjustmentframe=tk.Frame(self.upperframes[0]) #second variable frame, where user refines dice template to complete version
+		
+		self.canvas=tk.Canvas(self.canvasframe,
+							  height=self.imagesize[0],
+							  width=self.imagesize[1])
+		
+		self.canvas.bind("<Button-1>",self.callback)
+		self.canvasimg= self.canvas.create_image(0,
+												 0,
+												 anchor='nw',
+												 image=self.img)
+		self.lowerbuttons=[tk.Button(self.lowerframe,
+									 text='New Capture'),
+						   tk.Button(self.lowerframe,
+									 text='Crop Template')]
+		self.upperframe.pack()
+		for frame in self.upperframes:
+			frame.pack(side='left')
+		self.canvasframe.pack()
+		self.canvas.pack()
+		self.lowerframe.pack()
+		for button in self.lowerbuttons:
+			button.pack(side='left')
+	def callback(self,event):
+		temppoint=(event.x,event.y)
+		if self.points[0][0]==None:
+			self.points[0]=temppoint
+		else:
+			self.points[1]=temppoint
+			width = abs(self.points[1][0]-self.points[0][0]) #Width = Height so template is a complete square
+			startx=self.points[0][0]					   #This allows 90* rotations with zero image loss
+			starty=self.points[0][1]
+			if startx>self.points[1][0]:
+				startx=self.points[1][0]
+			if starty>self.points[1][1]:
+				starty=self.points[1][1]
+			#img=img[starty:starty+width,startx:startx+width]
+			#break
+			print(self.points)
+			self.points=[(None,None),(None,None)]
+		
+		
+		
 top=tk.Tk()	
-#baseimg = cv2.imread('dicetest/numbers/number3cropped.jpg', -1)
-baseimg = cv2.imread('dicetest/white/backgroundcrop.jpg', -1)
+baseimg = cv2.imread('dicetest/white/baselinecropped.jpg', -1)
+#baseimg = cv2.imread('dicetest/white/backgroundcrop.jpg', -1)
 baseimg = dicedetector.resizeImage(baseimg)
 img=baseimg.copy()
 img=cv2pil(img)
 
-baseimg=cv2.cvtColor(baseimg,cv2.COLOR_BGR2HSV)
+#baseimg=cv2.cvtColor(baseimg,cv2.COLOR_BGR2HSV)
 
-#a=colorThresholdingWindow(top,baseimg,img,img)
+#a=ColorThresholdingWindow(top,baseimg,img,img)
 #a.pack()
 
-#a=backgroundCropWindow(top,baseimg,img)
+#a=BackgroundCropWindow(top,baseimg,img)
 #a.pack()
 
-a=rollingSetupWindow(top)
+#a=RollingSetupWindow(top)
+#a.pack()
+
+a=TemplateCreationWindow(top,baseimg,img)
 a.pack()
+
 top.mainloop()
