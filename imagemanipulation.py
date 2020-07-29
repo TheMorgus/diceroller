@@ -5,6 +5,17 @@ import time
 import picamera
 from PIL import Image, ImageTk
 
+RESIZESCALE=0.3
+
+def resizeImage(img,scale=RESIZESCALE):
+	img = cv2.pyrDown(img)
+	#img = cv2.pyrDown(img)
+	#img = cv2.pyrDown(img)
+	width,height=imageSize(img)
+	width=int(scale*width)
+	height=int(scale*height)
+	img = cv2.resize(img,(height,width),interpolation=cv2.INTER_AREA)
+	return img
 def imageSize(img):
 	x,y,_=img.shape
 	return x,y
@@ -67,8 +78,43 @@ def getCapture():
 	data=np.fromstring(stream.getvalue(),dtype=np.uint8)
 	image=cv2.imdecode(data,1)
 	return(image)
+def convertHSV(img):
+	img=cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
+	return img
+def getCaptureDUMMY(option='1'):
+	if option=='1':
+		baseimg = cv2.imread('dicetest/white/backgroundcrop.jpg', -1)
+	if option=='2':
+		baseimg = cv2.imread('dicetest/white/white1cropped.jpg',-1)
+	return(baseimg)
 #Converts the OpenCV image types into an a PIL image
 #so the image can be displayed in tkinter
+def calibrateMask(img,hhigh=5,hlow=15,shigh=255,slow=40,vhigh=40,vlow=255):
+	#HSV color is ideal for masking, as it is resistance to shadow and lighting
+	#effects for filter colors. As a result, image converted to HSV color space
+	#for filtering background colors from dice colors
+	imagehsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	
+	#Creates a blank image (all black)
+	#Size of this image determines the length of the trackbars in trackbar
+	#window
+	blankimg = np.array([0,0,0])
+	row=1
+	col=400
+	blankimg=np.full((row,col,3),blankimg)
+	
+	low_background = np.array([hlow,slow,vlow])
+	high_background = np.array([hhigh,shigh,vhigh])
+	mask = cv2.inRange(imagehsv, low_background, high_background)
+	mask = cv2.bitwise_not(mask)
+	kernel = np.ones((5,5),np.uint8)
+	mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,kernel)
+	kernel = np.ones((5,5),np.float32)/25
+	mask = cv2.filter2D(mask,-1,kernel)
+	
+	res = cv2.bitwise_and(img,img,mask=mask)
+
+	return(mask)
 def cv2pil(img):
 	new_img=img.copy()
 	if new_img.ndim==2:
