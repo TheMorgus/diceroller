@@ -274,9 +274,13 @@ def selectAndCrop(img):
 		if k==27:
 			break
 	return img
+def cropImage(img,startx,starty,width,height):
+	img=img.copy()
+	img=img[starty:starty+width,startx:startx+width]
+	return img
 def imageSize(img):
 	x,y,_=img.shape
-	return x,y		
+	return x,y
 if __name__=="__main__":
 	img = cv2.imread('dicetest/numbers/number3cropped.jpg', -1)
 	img = resizeImage(img)
