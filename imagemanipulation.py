@@ -16,6 +16,9 @@ def resizeImage(img,scale=RESIZESCALE):
 	height=int(scale*height)
 	img = cv2.resize(img,(height,width),interpolation=cv2.INTER_AREA)
 	return img
+def resizeByDim(img,size):
+	img=cv2.resize(img,size,interpolation=cv2.INTER_AREA)
+	return img
 def imageSize(img):
 	x,y,_=img.shape
 	return x,y
@@ -23,6 +26,10 @@ def cropImage(img,startx,starty,width,height):
 	img=img.copy()
 	img=img[starty:starty+width,startx:startx+width]
 	return img
+def cropImage2(img,startx,starty,width,height):
+	img=img.copy()
+	img=img[starty:starty+height,startx:startx+width]
+	return img	
 def findRectContours(width,height,startx,starty):
 	points=[[startx,starty],
 			[startx+width,starty],
@@ -31,10 +38,34 @@ def findRectContours(width,height,startx,starty):
 	contours=np.array(points).reshape((-1,1,2)).astype(np.int32)
 	rect=cv2.minAreaRect(contours)
 	return rect
+def findRectContours2(width,height,startx,starty):
+	cnts=np.array([
+			[[startx,starty]],
+			[[startx+width,starty]],
+			[[startx+width,starty+height]],
+			[[startx,starty+height]]
+			])
+	rect=cv2.minAreaRect(cnts)
+	return rect
 def drawRect(img,rect,angle):
 	img=img.copy()
 	a,b,c=rect
+	angle=c+angle
 	rect=a,b,angle
+	box=cv2.boxPoints(rect)
+	box=np.int0(box)
+	cv2.drawContours(img,[box],0,(0,255,0),2)
+	return img
+def drawRotatedRect(baseimg,height,width,startx,starty):
+	img=baseimg.copy()
+	
+	cnt=np.array([
+			[[startx,starty]],
+			[[startx+width,starty]],
+			[[startx+width,starty+height]],
+			[[startx,starty+height]]
+			])
+	rect=cv2.minAreaRect(cnt)
 	box=cv2.boxPoints(rect)
 	box=np.int0(box)
 	cv2.drawContours(img,[box],0,(0,255,0),2)
@@ -69,6 +100,20 @@ def adjustImage(img,angle=0,sizechange=0,xchange=0,ychange=0):
 	img=cropImage(img,startx,starty,endwidth,endheight)
 	
 	return(img)
+def adjustImage2(img,angle=0,hchange=0,wchange=0,xchange=0,ychange=0):
+	height,width=imageSize(img)
+	startx=xchange
+	starty=ychange
+	endwidth=width+hchange
+	endheight=height+wchange
+	
+	centerx = startx+int(endwidth/2)
+	centery = starty+int(endheight/2)
+	
+	img=rotateImg2(img,angle,centerx,centery)
+	img=cropImage2(img,startx,starty,endwidth,endheight)
+	
+	return(img)
 def getCapture():
 	stream=io.BytesIO()
 	with picamera.PiCamera() as camera:
@@ -86,6 +131,10 @@ def getCaptureDUMMY(option='1'):
 		baseimg = cv2.imread('dicetest/white/backgroundcrop.jpg', -1)
 	if option=='2':
 		baseimg = cv2.imread('dicetest/white/white1cropped.jpg',-1)
+	if option=='3':
+		baseimg = cv2.imread('dicetest/numbers/number1cropped.jpg',-1)
+	if option=='4':
+		baseimg=cv2.imread('dicetest/white/baselinecropped.jpg', -1)
 	return(baseimg)
 #Converts the OpenCV image types into an a PIL image
 #so the image can be displayed in tkinter

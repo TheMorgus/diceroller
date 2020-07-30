@@ -26,7 +26,7 @@ DICEFILE = "dice.png"
 PLACEHOLDERDICE = "rollerplaceholder.jpg"
 DICEIMAGEDIM = 285
 ROOTSTARTDIMX = 1000
-ROOTSTARTDIMY = 700
+ROOTSTARTDIMY = 600
 POPUPWIDTH = 400
 POPUPHEIGHT = 100
 TILTDEGLIMIT = 5
@@ -46,6 +46,10 @@ CORRECTION_SATHIGH=50
 CORRECTION_SATLOW=50
 CORRECTION_VALUEHIGH=50
 CORRECTION_VALUELOW=90
+DICETEMPLATESPACE=3
+DICECROPS=(250,250,600,600)
+TEMPLATEWINDOWSCALE=0.4 #Resize scale for images in dice template window
+BASEIMAGESCALE=1
 
 class  MenuBase(tk.Tk):
 	def __init__(self, accelqueue):
@@ -69,24 +73,19 @@ class  MenuBase(tk.Tk):
 		
 		accelerometer.MPU_Init()
 		
-		self.openwindows=[]
-		self.currentwindow = IntroWindow(self)
-		#self.accelwindow = AccelWindow(self)
-		#self.rollingwindow = rollingWindow(self)
-		#self.menu =BaseMenu(self)
+		self.setupdict={
+			"thresholdvals":None,
+			"dicetemplates":None,
+			"trialsetup":None,
+			"areasetup":None
+			}
 		
+		#self.openwindows=[]
+		self.currentwindow = IntroWindow(self)
 		self.currentwindow.openWindow()
-	#def pushIntroFrame(self):
-		#self.introwindow.openFrame()
-		#self.currentwindow.openFrame()
-	#def pushAccelFrame(self):
-		#self.introwindow.closeFrame()
-		#self.accelwindow.openFrame()
-		#self.menu.drawMenu()
 	def changeWindow(self,newwindow):
 		self.currentwindow.closeWindow()
 		self.currentwindow=newwindow
-		print(self.currentwindow)
 		self.currentwindow.openWindow()
 	def addMenu(self):
 		self.menu=BaseMenu(self)
@@ -94,6 +93,9 @@ class  MenuBase(tk.Tk):
 	def closeAll(self):
 		for window in self.openwindows:
 			window.destroy()
+		self.destroy()
+	def close(self):
+		self.currentwindow.destroy()
 		self.destroy()
 	def runAccel(self):
 		self.runqueue.put(True)
@@ -117,8 +119,8 @@ class  MenuBase(tk.Tk):
 	def loop(self):
 		self.mainloop()
 	def destroythread(self):
-		self.runqueue.get()
 		self.runqueue.put(False)
+		self.runqueue.get()
 		self.accelqueue.get()
 class IntroWindow(tk.Frame):
 	def __init__(self, master=None):
@@ -342,26 +344,33 @@ class RollingSetupWindow(tk.Frame):
 			header.configure(font='Impact 9 underline')
 		self.thresholdingbuttons=[tk.Button(self.thresholdingframe,
 											text='New Solution',
-											command=lambda:self.pushWindow('bgthresholding')),
+											command=lambda:self.pushWindow('bgthresholding'),
+											state='disabled'),
 								  tk.Button(self.thresholdingframe,
 											text='Load Solution',
-											command=self.loadBackgroundThreshold)]
+											command=self.loadBackgroundThreshold,
+											state='disabled')]
 		self.dicetemplatebuttons=[tk.Button(self.dicetemplateframe,
-											text='New Templates'),
+											text='New Templates',
+											command=lambda:self.pushWindow('dicetemplates'),
+											state='disabled'),
 								  tk.Button(self.dicetemplateframe,
 											text='Load Templates',
-											command=self.loadTemplates)]
+											command=self.loadTemplates,
+											state='disabled')]
 		self.testingsetupbuttons=[tk.Button(self.trialsetupframe,
 										   text='Trial Setup',
-										   command=self.trialSetup),
+										   command=self.trialSetup,
+										   state='disabled'),
 								 tk.Button(self.trialsetupframe,
 										   text='Dice Area Setup',
-										   command=self.areaSetup)]										
+										   command=lambda:self.pushWindow('areasetup'))]										
 		self.movementbuttons=[tk.Button(self.movementbuttonsframe,
 										 text='Start',
 										 state='disabled'),
 							   tk.Button(self.movementbuttonsframe,
-										 text='Exit')]
+										 text='Exit',
+										 command=self.exit)]
 		self.checkboxstate=[tk.IntVar(),tk.IntVar(),tk.IntVar(),tk.IntVar()]								 
 		self.checkboxes=[tk.Checkbutton(self.checklistframe,
 									    state='disabled',
@@ -403,17 +412,52 @@ class RollingSetupWindow(tk.Frame):
 		for x in range(4):
 			self.checkboxes[x].grid(row=x,column=0)
 			self.checkboxlabels[x].grid(row=x,column=1,sticky='w')
+			
+		self.auditCheckboxesButtons() #check for complete pre-testing procedures
 	def pushWindow(self,window):
-		if window == "bgthresholding":
+		if window=="bgthresholding":
 			baseimg=imagemanipulation.getCaptureDUMMY()
-			baseimg = imagemanipulation.resizeImage(baseimg)
+			baseimg=imagemanipulation.resizeImage(baseimg)
 			img=baseimg.copy()
 			img=imagemanipulation.cv2pil(img)
 			baseimg=imagemanipulation.convertHSV(baseimg)
 			window=BackgroundThresholdBaseWindow(self.master,baseimg,img)
 			self.master.changeWindow(window)
+		if window=='dicetemplates':
+			baseimg=imagemanipulation.getCaptureDUMMY('4')
+			baseimg=imagemanipulation.resizeImage(baseimg,TEMPLATEWINDOWSCALE)
+			img=baseimg.copy()
+			img=imagemanipulation.cv2pil(img)
+			window=TemplateCreationWindow(self.master,baseimg,img)
+			self.master.changeWindow(window)
+		if window=='areasetup':
+			baseimg=imagemanipulation.getCaptureDUMMY('4')
+			baseimg=imagemanipulation.resizeImage(baseimg,TEMPLATEWINDOWSCALE)
+			img=baseimg.copy()
+			img=imagemanipulation.cv2pil(img)
+			window=AreaSetupWindow(self.master,baseimg,img)
+			self.master.changeWindow(window)
 	def closeWindow(self):
 		self.destroy()
+	def exit(self):
+		self.master.close()
+	def auditCheckboxesButtons(self):
+		if self.master.setupdict["thresholdvals"]!=None:
+			self.checkboxes[0].select()
+		if self.master.setupdict["dicetemplates"]!=None:
+			self.checkboxes[1].select()
+		if self.master.setupdict["trialsetup"]!=None:
+			self.checkboxes[2].select()
+		if self.master.setupdict["areasetup"]!=None:
+			self.checkboxes[3].select()
+			self.enableButtons()
+	def enableButtons(self):
+		for button in self.thresholdingbuttons:
+			button.configure(state='normal')
+		for button in self.dicetemplatebuttons:
+			button.configure(state='normal')
+		for button in self.testingsetupbuttons:
+			button.configure(state='normal')
 	def loadBackgroundThreshold(self):
 		self.checkboxes[0].select()	
 		self.parseClearance()
@@ -424,10 +468,7 @@ class RollingSetupWindow(tk.Frame):
 		path=filedialog.askopenfilename(title='Select File')
 	def trialSetup(self):
 		self.checkboxes[2].select()	
-		self.parseClearance()
-	def areaSetup(self):
-		self.checkboxes[3].select()	
-		self.parseClearance()		
+		self.parseClearance()	
 	def parseClearance(self):
 		clearance=True
 		for checkbox in self.checkboxstate:
@@ -509,10 +550,12 @@ class BackgroundThresholdBaseWindow(tk.Frame):
 		baseimg = imagemanipulation.resizeImage(baseimg)
 		img=baseimg.copy()
 		img=imagemanipulation.cv2pil(img)
+		mask=imagemanipulation.calibrateMask(baseimg)
+		mask=imagemanipulation.cv2pil(mask)
 		window=ColorThresholdingWindow(self.master,
 									   baseimg,
 									   img,
-									   img,
+									   mask,
 									   self.thresholdvals)
 		self.master.changeWindow(window)
 	def closeWindow(self):
@@ -574,8 +617,7 @@ class ColorThresholdingWindow(tk.Frame):
 		
 		self.baseimg=baseimg
 		self.baseimgpil=baseimgpil
-		maskimg=imagemanipulation.calibrateMask(self.baseimg)
-		self.maskimg=imagemanipulation.cv2pil(maskimg)
+		self.maskimg=maskimg
 		thresholdvals[0][0]=thresholdvals[0][0]+CORRECTION_HUEHIGH
 		thresholdvals[0][1]=thresholdvals[0][1]-CORRECTION_HUELOW
 		thresholdvals[1][0]=thresholdvals[1][0]+CORRECTION_SATHIGH
@@ -703,17 +745,37 @@ class ColorThresholdingWindow(tk.Frame):
 		self.img[1].pack(side='right')
 		
 		self.retrievebutton=tk.Button(self.lowerFrame,
-									  text='New Capture')
+									  text='New Capture',
+									  command=self.newCapture)
 		self.donebutton=tk.Button(self.lowerFrame,
-									  text='Use Selected Values')
+									  text='Use Selected Values',
+									  command=self.pushWindow)
 		
 		self.directiontext.pack(side='top')
 		self.retrievebutton.pack(side='left')
 		self.donebutton.pack(side='right')
-	def closeWindow():
+	def closeWindow(self):
 		self.destroy()
 	#Gets a new mask image based on threshold values set on trackbars.
-	#Called every time the trackbar is updated.	
+	#Called every time the trackbar is updated.
+	def pushWindow(self):
+		window=RollingSetupWindow(self.master)
+		self.master.setupdict["thresholdvals"]=self.thresholdvals
+		self.master.changeWindow(window)
+	def newCapture(self):
+		baseimg=imagemanipulation.getCaptureDUMMY('3')
+		self.baseimg=imagemanipulation.resizeImage(baseimg)
+		self.baseimgpil=imagemanipulation.cv2pil(self.baseimg)
+		self.img[0].configure(image=self.baseimgpil)
+		self.maskimg=imagemanipulation.calibrateMask(self.baseimg,
+											     self.thresholdvals[0],
+											     self.thresholdvals[1],
+											     self.thresholdvals[2],
+											     self.thresholdvals[3],
+											     self.thresholdvals[4],
+											     self.thresholdvals[5])
+		self.maskimg=imagemanipulation.cv2pil(self.maskimg)
+		self.img[1].configure(image=self.maskimg)							    
 	def getNewMask(self,_):
 		for x in range(6):
 			self.thresholdvals[x]=self.trackbars[x].get()
@@ -726,7 +788,488 @@ class ColorThresholdingWindow(tk.Frame):
 											     self.thresholdvals[5])
 		self.maskimg=imagemanipulation.cv2pil(self.maskimg)
 		self.img[1].configure(image=self.maskimg)
-		self.img[1].image=self.maskimg		
+class TemplateCreationWindow(tk.Frame):
+	def __init__(self,master,baseimg,img):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		self.img=img
+		self.baseimg=baseimg
+		self.diceimgs=[]
+		self.imagesize=imagemanipulation.imageSize(baseimg)
+		self.points=[(None,None),(None,None)]
+		self.tempbefore=None
+		self.tempafter=None
+		
+		self.sizeadjustment=0
+		self.angleadjustment=0
+		self.xadjustment=0
+		self.yadjustment=0
+		
+		self.upperframe=tk.Frame(self)
+		self.upperframes=[tk.Frame(self.upperframe),#Holds the upper left variable frame, 
+						  tk.Frame(self.upperframe)]#and the upper right dice template frame
+		self.lowerframe=tk.Frame(self)	#Hold frames for button and directions
+		self.lowerframes=[tk.Frame(self.lowerframe),
+						  tk.Frame(self.lowerframe)]
+		self.canvasframe=tk.Frame(self.upperframes[0]) #One of two variable frames, holds image of dice to be cropped to make template
+		self.templateadjustmentframe=tk.Frame(self.upperframes[0])#second variable frame, where user refines dice template to complete version
+		
+		
+		self.templateadjustmentinnerframes=[tk.Frame(self.templateadjustmentframe),
+											tk.Frame(self.templateadjustmentframe,
+													 padx=5,
+													 pady=5,
+													 background='grey',
+													 relief='sunken',
+													 borderwidth=1)]
+		self.templateadjustmentimgcontainer=tk.Frame(self.templateadjustmentinnerframes[0],
+												   height=self.imagesize[0],
+												   width=self.imagesize[1],
+												   background='black')
+		self.templateadjustmentimgcontainer.pack_propagate(0)
+		self.templateadjustmentbuttonframes=[tk.Frame(self.templateadjustmentinnerframes[1],
+													  relief='sunken',
+													  borderwidth=1),
+											 tk.Frame(self.templateadjustmentinnerframes[1],
+													  relief='sunken',
+													  borderwidth=1),
+											 tk.Frame(self.templateadjustmentinnerframes[1],
+													  relief='sunken',
+													  borderwidth=1),
+											 tk.Frame(self.templateadjustmentinnerframes[1],
+													  relief='sunken',
+													  borderwidth=1)]
+		
+		self.canvas=tk.Canvas(self.canvasframe,
+							  height=self.imagesize[0],
+							  width=self.imagesize[1])
+		self.canvasimg= self.canvas.create_image(0,
+												 0,
+												 anchor='nw',
+												 image=self.img)
+		self.temptemplateimgs=[tk.Label(self.templateadjustmentimgcontainer),
+							   tk.Label(self.templateadjustmentimgcontainer)]
+		self.turnsbuttons=[tk.Button(self.templateadjustmentbuttonframes[0],
+								     text='Rotate\nLeft',
+								     command=lambda:self.rotateTemplate('left')),
+						   tk.Button(self.templateadjustmentbuttonframes[0],
+								     text='Rotate\nRight',
+								     command=lambda:self.rotateTemplate('right'))]
+		self.resizebuttons=[tk.Button(self.templateadjustmentbuttonframes[2],
+									  text='Increase(+)\nSize',
+									  command=lambda:self.resizeTemplate('increase')),
+						    tk.Button(self.templateadjustmentbuttonframes[2],
+									  text='Decrease(-)\nSize',
+									  command=lambda:self.resizeTemplate('decrease'))]
+		self.movebuttons=[tk.Button(self.templateadjustmentbuttonframes[1],
+								    text='^',
+								    command=lambda:self.moveTemplate('yup')),
+						  tk.Button(self.templateadjustmentbuttonframes[1],
+								    text='<',
+								    command=lambda:self.moveTemplate('xdown')),
+						  tk.Button(self.templateadjustmentbuttonframes[1],
+								    text='>',
+								    command=lambda:self.moveTemplate('xup')),
+						  tk.Button(self.templateadjustmentbuttonframes[1],
+								    text='v',
+								    command=lambda:self.moveTemplate('ydown'))]
+		self.diceimglabels=[]
+		for x in range(6): #Creates 6x4 matrix of labels for dice imgs
+			temp=[]
+			for x in range (4):
+				temp.append(tk.Label(self.upperframes[1]))
+			self.diceimglabels.append(temp)
+		self.dicevalueheaders=[]
+		for x in range(6):
+			text="Value:"+str(x+1)
+			temp=tk.Label(self.upperframes[1],
+						  text=text,
+						  width=DICETEMPLATESPACE+4,
+						  height=DICETEMPLATESPACE,
+						  relief='ridge')
+			self.dicevalueheaders.append(temp)
+		self.templateangleheaders=[]
+		for x in range(4):
+			degree_sign=u'\N{DEGREE SIGN}'
+			text=str(x*90)+degree_sign
+			temp=tk.Label(self.upperframes[1],
+						  text=text,
+						  width=DICETEMPLATESPACE+3,
+						  height=DICETEMPLATESPACE,
+						  relief='ridge')
+			self.templateangleheaders.append(temp)
+		self.directionstext=tk.StringVar()
+		self.directionstext.set(directions.DIRECTIONSTEMPLATECROP)
+		self.directionsbox=tk.Label(self.lowerframes[0],
+									textvariable=self.directionstext,
+									justify='left')
+		self.wrapupbuttons=[tk.Button(self.templateadjustmentbuttonframes[3],
+									 text='Accept',
+									 command=self.addTemplate),
+							tk.Button(self.templateadjustmentbuttonframes[3],
+									 text='Reset',
+									 command=self.resetTemplate)]		 
+		self.lowerbuttons=[tk.Button(self.lowerframes[1],
+									 text='New Capture',
+									 command=self.newCapture),
+						   tk.Button(self.lowerframes[1],
+									 text='Crop Next\nTemplate',
+									 command=self.enableCropping),
+						   tk.Button(self.lowerframes[1],
+									 text='Undo Last\nTemplate',
+									 command=self.undoTemplate,
+									 state='disabled'),
+						   tk.Button(self.lowerframes[1],
+									 text='Finalize\nTemplates',
+									 command=self.finish,
+									 state='disabled')]
+	def openWindow(self):
+		self.pack()
+		self.upperframe.pack()
+		for frame in self.upperframes:
+			frame.pack(side='left')
+		self.canvasframe.pack()
+		self.canvas.pack()
+		self.templateadjustmentimgcontainer.pack()
+		for frame in self.templateadjustmentinnerframes:
+			frame.pack(side='top')
+		for frame in self.templateadjustmentbuttonframes:
+			frame.pack(side='left',anchor='s')
+		for button in self.turnsbuttons:
+			button.pack(side='left')
+		for button in self.resizebuttons:
+			button.pack(side='left')
+		self.movebuttons[0].pack(side='top')
+		self.movebuttons[1].pack(side='left')
+		self.movebuttons[2].pack(side='right')
+		self.movebuttons[3].pack(side='bottom')
+		for button in self.wrapupbuttons:
+			button.pack(side='top')
+		for label in self.temptemplateimgs:
+			label.pack(side='left',expand=True)
+		self.lowerframe.pack()
+		for frame in self.lowerframes:
+			frame.pack(pady=2)
+		self.directionsbox.pack()
+		for x in range(6):
+			self.dicevalueheaders[x].grid(row=x+1,column=0,
+										  padx=5,pady=1)
+		for x in range(4):
+			self.templateangleheaders[x].grid(row=0,column=x+1,
+										  padx=5,pady=1)
+		for x in range(6):
+			for y in range(4):
+				self.diceimglabels[x][y].grid(row=x+1,column=y+1)
+		for button in self.lowerbuttons:
+			button.pack(side='left')
+	def closeWindow(self):
+		self.destroy()
+	def newCapture(self):
+		self.baseimg=imagemanipulation.getCapture()
+		#self.baseimg=imagemanipulation.cropImage(self.baseimg,
+		#										 DICECROPS[0],
+		#										 DICECROPS[1],
+		#										 DICECROPS[2],
+		#										 DICECROPS[3])
+		self.baseimg=imagemanipulation.resizeByDim(self.baseimg,self.imagesize)
+		self.img=imagemanipulation.cv2pil(self.baseimg)
+		self.canvasimg= self.canvas.create_image(0,
+												 0,
+												 anchor='nw',
+												 image=self.img)
+		#self.baseimg=
+	def enableCropping(self):
+		self.canvas.bind("<Button-1>",self.callback)
+		self.directionstext.set(directions.DIRECTIONSTEMPLATECROP2)
+		for button in self.lowerbuttons:
+			button.configure(state='disabled')
+	def addTemplate(self):
+		finishedimgs=[]
+		self.lowerbuttons[2].configure(state='normal')
+		for x in range(4):
+			img=imagemanipulation.adjustImage(self.tempopencv,
+										angle=self.angleadjustment+x*90,
+										sizechange=self.sizeadjustment,
+										xchange=self.xadjustment,
+										ychange=self.yadjustment)
+			finishedimgs.append(imagemanipulation.cv2pil(img))
+		self.diceimgs.append(finishedimgs)
+		for x in range(len(self.diceimgs)):
+			for y in range(4):
+				self.diceimglabels[x][y].configure(image=self.diceimgs[x][y])	
+		self.frameSwitch('cropping')
+		self.resetAdjustments()
+		for x in range(3):
+			self.lowerbuttons[x].configure(state='normal')
+		if len(self.diceimgs)==6:
+			self.lowerbuttons[3].configure(state='normal')
+		self.directionstext.set(directions.DIRECTIONSTEMPLATECROP)
+	def undoTemplate(self):
+		if len(self.diceimgs)>0:
+			lastindex=len(self.diceimgs)
+			for x in range(4):
+				self.diceimglabels[lastindex-1][x].configure(image='')
+			self.diceimgs.pop()
+			if len(self.diceimgs)>0:
+				for x in range(len(self.diceimgs)):
+					for y in range(4):
+						self.diceimglabels[x][y].configure(image=self.diceimgs[x][y])
+		if len(self.diceimgs)==0:
+			self.lowerbuttons[2].configure(state='disabled')
+		self.lowerbuttons[3].configure(state='disabled')
+	def resetTemplate(self):
+		self.frameSwitch('cropping')
+		self.resetAdjustments()
+		for button in self.lowerbuttons:
+			button.configure(state='normal')
+		self.directionstext.set(directions.DIRECTIONSTEMPLATECROP)
+	def resetAdjustments(self):
+		self.sizeadjustment=0 #Reset adjustments for next template
+		self.angleadjustment=0
+		self.xadjustment=0
+		self.yadjustment=0
+	def frameSwitch(self, frame):
+		if frame=='template':
+			self.canvasframe.forget()
+			self.lowerframe.forget()
+			self.templateadjustmentframe.pack(fill='none',expand=False)
+			self.lowerframe.pack()
+		if frame=='cropping':
+			self.templateadjustmentframe.forget()
+			self.lowerframe.forget()
+			self.canvasframe.pack()
+			self.lowerframe.pack()
+	def rotateTemplate(self,direction):
+		if direction=='left':
+			self.angleadjustment=self.angleadjustment+1
+		elif direction=='right':
+			self.angleadjustment=self.angleadjustment-1
+		self.updateTemporaryTemplate()
+	def resizeTemplate(self,change):
+		if (change=='increase') and (self.sizeadjustment!=0):
+			self.sizeadjustment=self.sizeadjustment+2
+		elif change=='decrease':
+			self.sizeadjustment=self.sizeadjustment-2
+			
+		self.updateTemporaryTemplate()
+	def moveTemplate(self,change):
+		
+		if change=='xup' and self.xadjustment<abs(self.sizeadjustment):
+			self.xadjustment=self.xadjustment+2
+		if change=='xdown' and self.xadjustment!=0:
+			self.xadjustment=self.xadjustment-2
+		if change=='yup' and self.yadjustment!=0:
+			self.yadjustment=self.yadjustment-2
+		if change=='ydown' and self.yadjustment<abs(self.sizeadjustment):
+			self.yadjustment=self.yadjustment+2
+		self.updateTemporaryTemplate()
+	def updateTemporaryTemplate(self):
+		img=imagemanipulation.adjustImage(self.tempopencv,
+									 angle=self.angleadjustment,
+									 sizechange=self.sizeadjustment,
+									 xchange=self.xadjustment,
+									 ychange=self.yadjustment)
+		self.updateBaseTemplate(img)
+		self.tempafter=imagemanipulation.cv2pil(img)
+		self.temptemplateimgs[1].configure(image=self.tempafter)
+	def updateBaseTemplate(self,img):
+		width,height=imagemanipulation.imageSize(img)
+		width=width
+		height=height
+		rect=imagemanipulation.findRectContours(width,
+												height,
+												startx=self.xadjustment,
+												starty=self.yadjustment)
+		img=imagemanipulation.drawRect(self.tempopencv,
+									   rect,
+									   angle=self.angleadjustment)
+		self.tempbefore=imagemanipulation.cv2pil(img)
+		self.temptemplateimgs[0].configure(image=self.tempbefore)
+	def finish(self):
+		window=RollingSetupWindow(self.master)
+		self.master.setupdict["dicetemplates"]=self.diceimgs
+		self.master.changeWindow(window)	
+	def callback(self,event):
+		temppoint=(event.x,event.y)
+		if self.points[0][0]==None:
+			self.points[0]=temppoint
+		else:
+			self.points[1]=temppoint
+			width = abs(self.points[1][0]-self.points[0][0]) #Width = Height so template is a complete square
+			startx=self.points[0][0]					   #This allows 90* rotations with zero image loss
+			starty=self.points[0][1]
+			if startx>self.points[1][0]:
+				startx=self.points[1][0]
+			if starty>self.points[1][1]:
+				starty=self.points[1][1]
+			self.points=[(None,None),(None,None)]
+			img=imagemanipulation.cropImage(self.baseimg,startx,starty,width,width)
+			self.tempopencv=img
+			self.tempbefore=(imagemanipulation.cv2pil(img))
+			self.tempafter=self.tempbefore
+			for label in self.temptemplateimgs:
+				label.configure(image=self.tempbefore)
+			self.directionstext.set(directions.DIRECTIONSTEMPLATECROP3)
+			self.frameSwitch(frame='template')
+			self.canvas.unbind("<Button-1>")
+class AreaSetupWindow(tk.Frame):
+	def __init__(self,master,baseimg,img):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		self.baseimg=baseimg
+		self.img=img
+		
+		self.hadjustment=0
+		self.wadjustment=0
+		self.angleadjustment=0
+		self.xadjustment=0
+		self.yadjustment=0
+		
+		self.upperframe=tk.Frame(self)
+		self.lowerframe=tk.Frame(self)
+		self.lowerbuttonframes=[tk.Frame(self.lowerframe),
+								tk.Frame(self.lowerframe)]
+		self.movementbuttonframe=[tk.Frame(self.lowerbuttonframes[0]),
+								  tk.Frame(self.lowerbuttonframes[0]),
+								  tk.Frame(self.lowerbuttonframes[0])]
+		self.imglabel=tk.Label(self.upperframe,
+							   image=self.img)
+		self.turnsbuttons=[tk.Button(self.movementbuttonframe[0],
+								     text='Rotate\nLeft',
+								     command=lambda:self.rotateArea('left')),
+						   tk.Button(self.movementbuttonframe[0],
+								     text='Rotate\nRight',
+								     command=lambda:self.rotateArea('right'))]
+		self.resizebuttons=[tk.Button(self.movementbuttonframe[2],
+									  text='Height(+)\nSize',
+									  command=lambda:self.resizeArea('hup')),
+							tk.Button(self.movementbuttonframe[2],
+									  text='Height(-)\nSize',
+									  command=lambda:self.resizeArea('hdown')),
+							tk.Button(self.movementbuttonframe[2],
+									  text='Width(+)\nSize',
+									  command=lambda:self.resizeArea('wup')),
+						    tk.Button(self.movementbuttonframe[2],
+									  text='Width(-)\nSize',
+									  command=lambda:self.resizeArea('wdown'))]
+		self.movebuttons=[tk.Button(self.movementbuttonframe[1],
+								    text='^',
+								    command=lambda:self.moveArea('yup')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='<',
+								    command=lambda:self.moveArea('xdown')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='>',
+								    command=lambda:self.moveArea('xup')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='v',
+								    command=lambda:self.moveArea('ydown'))]
+		self.basebuttons=[tk.Button(self.lowerbuttonframes[1],
+								    text='New Capture',
+								    command=self.newCapture),
+						  tk.Button(self.lowerbuttonframes[1],
+								    text='Preview',
+								    command=self.preview),
+						  tk.Button(self.lowerbuttonframes[1],
+								    text='Select and\nFinish',
+								    command=self.selectArea,
+								    state='disabled')]
+	def openWindow(self):
+		self.pack()
+		self.upperframe.pack()
+		self.imglabel.pack()
+		self.lowerframe.pack()
+		for frame in self.lowerbuttonframes:
+			frame.pack()
+		for frame in self.movementbuttonframe:
+			frame.pack(side='left')	
+		for button in self.turnsbuttons:
+			button.pack(side='left')
+		for button in self.resizebuttons:
+			button.pack(side='left')
+		for button in self.basebuttons:
+			button.pack(side='left')
+		self.movebuttons[0].pack(side='top')
+		self.movebuttons[1].pack(side='left')
+		self.movebuttons[2].pack(side='right')
+		self.movebuttons[3].pack(side='bottom')
+	def closeWindow(self):
+		self.destroy()
+	def newCapture(self):
+		baseimg=imagemanipulation.getCapture()
+		self.baseimg=imagemanipulation.resizeImage(baseimg,
+												   scale=BASEIMAGESCALE)
+		self.img=imagemanipulation.cv2pil(self.baseimg)
+		self.imglabel.configure(image=self.img)
+	def updateDiceArea(self):
+		width,height=imagemanipulation.imageSize(self.baseimg)
+		width=width+self.wadjustment
+		height=height+self.hadjustment
+		rect=imagemanipulation.findRectContours2(height,
+												width,
+												startx=self.xadjustment,
+												starty=self.yadjustment)
+		img=imagemanipulation.drawRect(self.baseimg,
+									   rect,
+									   angle=self.angleadjustment)
+
+		"""
+		img=imagemanipulation.drawRotatedRect(self.baseimg,
+											  width,
+											  height,
+											  startx=self.xadjustment,
+											  starty=self.yadjustment)
+		"""
+		self.img=imagemanipulation.cv2pil(img)
+		self.imglabel.configure(image=self.img)
+	def rotateArea(self,direction):
+		self.basebuttons[2].configure(state='disabled') # No longer preview - Disallow finishing
+		if direction=='left':
+			self.angleadjustment=self.angleadjustment-0.1
+		elif direction=='right':
+			self.angleadjustment=self.angleadjustment+0.1
+		self.updateDiceArea()
+	def resizeArea(self,change):
+		self.basebuttons[2].configure(state='disabled')
+		if (change=='hup') and (self.hadjustment!=0):
+			self.hadjustment=self.hadjustment+2
+		elif change=='hdown':
+			self.hadjustment=self.hadjustment-2
+		if (change=='wup') and (self.wadjustment!=0):
+			self.wadjustment=self.wadjustment+2
+		elif change=='wdown':
+			self.wadjustment=self.wadjustment-2
+		self.updateDiceArea()
+	def moveArea(self,change):
+		self.basebuttons[2].configure(state='disabled')
+		if change=='xup' and self.xadjustment<abs(self.hadjustment):
+			self.xadjustment=self.xadjustment+2
+		if change=='xdown' and self.xadjustment!=0:
+			self.xadjustment=self.xadjustment-2
+		if change=='yup' and self.yadjustment!=0:
+			self.yadjustment=self.yadjustment-2
+		if change=='ydown' and self.yadjustment<abs(self.wadjustment):
+			self.yadjustment=self.yadjustment+2
+		self.updateDiceArea()
+	def preview(self):
+		img=imagemanipulation.adjustImage2(self.baseimg,
+										   angle=self.angleadjustment,
+										   hchange=self.hadjustment,
+										   wchange=self.wadjustment,
+										   xchange=self.xadjustment,
+										   ychange=self.yadjustment)
+		self.img=imagemanipulation.cv2pil(img)
+		self.imglabel.configure(image=self.img)
+		self.basebuttons[2].configure(state='normal')
+	def selectArea(self):
+		areasetup=[self.angleadjustment,
+				   self.hadjustment,
+				   self.wadjustment,
+				   self.xadjustment,
+				   self.yadjustment]
+		self.master.setupdict['areasetup']=areasetup
+		window=RollingSetupWindow(self.master)
+		self.master.changeWindow(window)
 class RollingWindow(tk.Frame):
 	def __init__(self, master=None):
 		tk.Frame.__init__(self, master)

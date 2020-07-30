@@ -33,6 +33,7 @@ DIRECTIONSTEMPLATECROP3="DIRECTIONS\nThe image on the left is the image before m
 						" surface is visible, with visible rolling surface."
 DICETEMPLATESPACE=3
 DICECROPS=(250,250,600,600)
+BASEIMAGESCALE=1
 #Using the previous thresholding values gathered from the backgroundCropWindow
 #as a base, the user is able to further refine the background filtering with
 #the dice to be tested on the rolling space. This feature is mandatory to ensure
@@ -696,8 +697,145 @@ class TemplateCreationWindow(tk.Frame):
 			self.directionstext.set(DIRECTIONSTEMPLATECROP3)
 			self.frameSwitch(frame='template')
 			self.canvas.unbind("<Button-1>")
+class AreaSetupWindow(tk.Frame):
+	def __init__(self,master,baseimg,img):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		self.baseimg=baseimg
+		self.img=img
 		
+		self.sizeadjustment=0
+		self.angleadjustment=0
+		self.xadjustment=0
+		self.yadjustment=0
 		
+		self.upperframe=tk.Frame(self)
+		self.lowerframe=tk.Frame(self)
+		self.lowerbuttonframes=[tk.Frame(self.lowerframe),
+								tk.Frame(self.lowerframe)]
+		self.movementbuttonframe=[tk.Frame(self.lowerbuttonframes[0]),
+								  tk.Frame(self.lowerbuttonframes[0]),
+								  tk.Frame(self.lowerbuttonframes[0])]
+		self.imglabel=tk.Label(self.upperframe,
+							   image=self.img)
+		self.turnsbuttons=[tk.Button(self.movementbuttonframe[0],
+								     text='Rotate\nLeft',
+								     command=lambda:self.rotateArea('left')),
+						   tk.Button(self.movementbuttonframe[0],
+								     text='Rotate\nRight',
+								     command=lambda:self.rotateArea('right'))]
+		self.resizebuttons=[tk.Button(self.movementbuttonframe[2],
+									  text='Increase(+)\nSize',
+									  command=lambda:self.resizeArea('increase')),
+						    tk.Button(self.movementbuttonframe[2],
+									  text='Decrease(-)\nSize',
+									  command=lambda:self.resizeArea('decrease'))]
+		self.movebuttons=[tk.Button(self.movementbuttonframe[1],
+								    text='^',
+								    command=lambda:self.moveArea('yup')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='<',
+								    command=lambda:self.moveArea('xdown')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='>',
+								    command=lambda:self.moveArea('xup')),
+						  tk.Button(self.movementbuttonframe[1],
+								    text='v',
+								    command=lambda:self.moveArea('ydown'))]
+		self.basebuttons=[tk.Button(self.lowerbuttonframes[1],
+								    text='New Capture',
+								    command=self.newCapture),
+						  tk.Button(self.lowerbuttonframes[1],
+								    text='Preview',
+								    command=self.preview),
+						  tk.Button(self.lowerbuttonframes[1],
+								    text='Select and\nFinish',
+								    command=self.selectArea,
+								    state='disabled')]
+	def openWindow(self):
+		self.pack()
+		self.upperframe.pack()
+		self.imglabel.pack()
+		self.lowerframe.pack()
+		for frame in self.lowerbuttonframes:
+			frame.pack()
+		for frame in self.movementbuttonframe:
+			frame.pack(side='left')	
+		for button in self.turnsbuttons:
+			button.pack(side='left')
+		for button in self.resizebuttons:
+			button.pack(side='left')
+		for button in self.basebuttons:
+			button.pack(side='left')
+		self.movebuttons[0].pack(side='top')
+		self.movebuttons[1].pack(side='left')
+		self.movebuttons[2].pack(side='right')
+		self.movebuttons[3].pack(side='bottom')
+	def newCapture(self):
+		baseimg=imagemanipulation.getCapture()
+		self.baseimg=imagemanipulation.resizeImage(baseimg,
+												   scale=BASEIMAGESCALE)
+		self.img=imagemanipulation.cv2pil(self.baseimg)
+		self.imglabel.configure(image=self.img)
+	def updateDiceArea(self):
+		width,height=imagemanipulation.imageSize(self.baseimg)
+		print((width,height))
+		width=width+self.sizeadjustment
+		height=height+self.sizeadjustment
+		rect=imagemanipulation.findRectContours2(height,
+												width,
+												startx=self.xadjustment,
+												starty=self.yadjustment)
+		img=imagemanipulation.drawRect(self.baseimg,
+									   rect,
+									   angle=self.angleadjustment)
+
+		"""
+		img=imagemanipulation.drawRotatedRect(self.baseimg,
+											  width,
+											  height,
+											  startx=self.xadjustment,
+											  starty=self.yadjustment)
+		"""
+		self.img=imagemanipulation.cv2pil(img)
+		self.imglabel.configure(image=self.img)
+	def rotateArea(self,direction):
+		self.basebuttons[2].configure(state='disabled') # No longer preview - Disallow finishing
+		if direction=='left':
+			self.angleadjustment=self.angleadjustment-0.1
+		elif direction=='right':
+			self.angleadjustment=self.angleadjustment+0.1
+		self.updateDiceArea()
+	def resizeArea(self,change):
+		self.basebuttons[2].configure(state='disabled')
+		if (change=='increase') and (self.sizeadjustment!=0):
+			self.sizeadjustment=self.sizeadjustment+2
+		elif change=='decrease':
+			self.sizeadjustment=self.sizeadjustment-2
+		self.updateDiceArea()
+	def moveArea(self,change):
+		self.basebuttons[2].configure(state='disabled')
+		if change=='xup' and self.xadjustment<abs(self.sizeadjustment):
+			self.xadjustment=self.xadjustment+2
+		if change=='xdown' and self.xadjustment!=0:
+			self.xadjustment=self.xadjustment-2
+		if change=='yup' and self.yadjustment!=0:
+			self.yadjustment=self.yadjustment-2
+		if change=='ydown' and self.yadjustment<abs(self.sizeadjustment):
+			self.yadjustment=self.yadjustment+2
+		self.updateDiceArea()
+	def preview(self):
+		img=imagemanipulation.adjustImage2(self.baseimg,
+										   angle=self.angleadjustment,
+										   sizechange=self.sizeadjustment,
+										   xchange=self.xadjustment,
+										   ychange=self.yadjustment)
+		self.img=imagemanipulation.cv2pil(img)
+		self.imglabel.configure(image=self.img)
+		self.basebuttons[2].configure(state='normal')
+	def selectArea(self):
+		#Send image cropping information to root
+		pass
 top=tk.Tk()	
 baseimg = cv2.imread('dicetest/white/baselinecropped.jpg', -1)
 #baseimg = cv2.imread('dicetest/white/white1cropped.jpg', -1)
@@ -717,7 +855,10 @@ img=imagemanipulation.cv2pil(img)
 #a=RollingSetupWindow(top)
 #a.pack()
 
-a=TemplateCreationWindow(top,baseimg,img)
-a.pack()
+#a=TemplateCreationWindow(top,baseimg,img)
+#a.pack()
+
+a=AreaSetupWindow(top,baseimg,img)
+a.openWindow()
 
 top.mainloop()
