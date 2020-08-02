@@ -836,6 +836,232 @@ class AreaSetupWindow(tk.Frame):
 	def selectArea(self):
 		#Send image cropping information to root
 		pass
+class TrialSetupWindow(tk.Frame):
+	def __init__(self,master):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		
+		self.checkvars=[tk.IntVar(),
+						tk.IntVar(),
+						tk.IntVar(),
+						tk.IntVar()]
+		self.entryvars=[tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar()]	
+		self.trialsframe=tk.Frame(self.master,)
+		self.trialsinnerframes=[tk.Frame(self.master,
+										 relief='sunken',
+										 borderwidth=2),
+								tk.Frame(self.master,
+										 relief='sunken',
+										 borderwidth=2)]
+		self.diceframe=tk.Frame(self.master,
+								relief='sunken',
+								borderwidth=2)
+		self.summaryframe=tk.Frame(self.master,
+								   relief='groove',
+								   borderwidth=2)
+		self.summarytext=tk.Text(self.summaryframe,
+								 height=5,
+								 width=30,
+								 state='disabled')
+		self.basebuttonframe=tk.Frame(self.master)
+		self.confidenceframe=tk.Frame(self.trialsinnerframes[0])
+		self.button=tk.Button(self.basebuttonframe,
+							  text='Finalize',
+							  state='disabled',
+							  command=self.finalize)
+		self.trialentryframe=tk.Frame(self.trialsinnerframes[1])
+		self.trialheaders=[tk.Label(self.trialsinnerframes[0],
+								   text='Choose Trial Type:'),
+						  tk.Label(self.trialsinnerframes[1],
+								   text='Choose Trial Iterations:')]
+		self.confidencelabel=tk.Label(self.confidenceframe,
+									  text='Desired\nConfidence:')
+		self.confidencepercent=tk.Label(self.confidenceframe,
+									  text='%')							  
+		self.confidenceentry=tk.Entry(self.confidenceframe,
+									  width=5,
+									  state='disabled',
+									  command=self.auditSetup(),
+									  textvariable=self.entryvars[0])
+		self.checkbuttons=[tk.Checkbutton(self.trialsinnerframes[0],
+										  text='Stop Trial if Confidence % Reached',
+										  variable=self.checkvars[0],
+										  command=lambda:self.trialTypeChange(0)),
+						   tk.Checkbutton(self.trialsinnerframes[0],
+										  text='Run All Trials',
+										  justify='left',
+										  variable=self.checkvars[1],
+										  command=lambda:self.trialTypeChange(1)),
+		                   tk.Checkbutton(self.trialsinnerframes[1],
+										  text='Run Suggested Trials - 1000',
+										  variable=self.checkvars[2],
+										  command=lambda:self.trialIterationChange(0)),
+						   tk.Checkbutton(self.trialsinnerframes[1],
+										  text='Select Trial Iterations',
+										  justify='left',
+										  variable=self.checkvars[3],
+										  command=lambda:self.trialIterationChange(1))]
+		self.trialslabel=tk.Label(self.trialentryframe,
+								  text='Desired\nTrial Iterations:')
+		self.trialsentry=tk.Entry(self.trialentryframe,
+								 width=5,
+								 state='disabled',
+								 command=self.auditSetup(),
+								 textvariable=self.entryvars[1])		
+		self.diceheader=tk.Label(self.diceframe,
+								 text='Enter Number of Dice (1-8)')
+		self.diceentry=tk.Entry(self.diceframe,
+								width=5,
+								command=self.auditSetup(),
+								textvariable=self.entryvars[2])
+		self.summaryheader=tk.Label(self.summaryframe,
+									text='Setup Summary')
+		self.textvar=tk.StringVar()
+							  
+		self.entryvars[0].trace('w',self.auditSetup)
+		self.entryvars[1].trace('w',self.auditSetup)
+		self.entryvars[2].trace('w',self.auditSetup)
+	def openWindow(self):
+		self.pack()
+		self.trialsframe.pack()
+		for frame in self.trialsinnerframes:
+			frame.pack(pady=2,
+					   fill='both')
+		self.diceframe.pack(pady=2,
+							fill='both')
+		self.summaryframe.pack()
+		self.basebuttonframe.pack()
+		self.trialheaders[0].pack(pady=15)
+		self.checkbuttons[0].pack(anchor='w')
+		self.confidenceframe.pack()
+		self.confidencelabel.pack(side='left')
+		self.confidenceentry.pack(side='left')
+		self.confidencepercent.pack(side='left')
+		self.trialheaders[1].pack(pady=15)
+		self.checkbuttons[1].pack(anchor='w')
+		self.checkbuttons[2].pack(anchor='w')
+		self.checkbuttons[3].pack(anchor='w')
+		self.trialentryframe.pack()
+		self.trialslabel.pack(side='left',
+							  anchor='e')
+		self.trialsentry.pack(side='left',
+							  anchor='e')
+		self.diceheader.pack()
+		self.diceentry.pack()	
+		self.summaryheader.pack()
+		self.summarytext.pack()
+		self.button.pack()
+	def finalize(self):
+		pass						
+	def trialTypeChange(self,change):
+		trialchecks=[self.checkvars[0].get(),
+					 self.checkvars[1].get()]
+		if change==0 and trialchecks[0]==1:
+			self.checkbuttons[1].deselect()
+			self.confidenceentry.configure(state='normal')
+		if change==0 and trialchecks[0]==0:
+			self.confidenceentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==1:
+			self.checkbuttons[0].deselect()
+			self.confidenceentry.configure(state='disabled')
+		self.auditSetup()
+	def trialIterationChange(self,change):
+		trialchecks=[self.checkvars[2].get(),
+					 self.checkvars[3].get()]
+		if change==0 and trialchecks[0]==1:
+			self.checkbuttons[3].deselect()
+			self.trialsentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==0:
+			self.trialsentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==1:
+			self.checkbuttons[2].deselect()
+			self.trialsentry.configure(state='normal')
+		self.auditSetup()
+	def auditSetup(self,a=1,b=2,c=3):
+		checks=[]
+		for check in self.checkvars:
+			checks.append(check.get())
+		confidence=self.entryvars[0].get()
+		trials=self.entryvars[1].get()
+		dice=self.entryvars[2].get()
+		if checks[0] and confidence=='':
+			confidence=None
+		elif checks[0]:
+			pass
+		elif checks[1]:
+			confidence='0'
+		else:
+			confidence=None
+		if checks[3] and trials=='':
+			trials=None
+		elif checks[3]:
+			pass
+		elif checks[2]:
+			trials='1000'
+		else:
+			trials=None
+		if dice=='':
+			dice=None
+		print(confidence,trials,dice)
+		if None in (confidence,trials,dice):
+			self.summarytext.configure(state='normal')
+			self.summarytext.delete('0.0','10.10')
+			self.summarytext.insert('0.0',"Setup Incomplete")
+			self.summarytext.configure(state='disabled')
+			self.button.configure(state='disabled')
+		elif self.invalidEntryCheck(confidence,trials,dice):
+				text='Invalid Entry'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+				self.button.configure(state='disabled')
+		else:
+			if confidence=='0':
+				text='There will be '+trials+' trials run'+\
+					 ' on '+dice+' dice.'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+			else:
+				text='There will be a max of '+trials+'\ntrials ran, '+\
+					 'which will end\nearly if '+confidence+'% confidence\n'+\
+					 'is achieved using '+dice+' dice.'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+			self.button.configure(state='normal')
+	def invalidEntryCheck(self,confidence,trials,dice):
+		def is_int(s):
+			try:
+				int(s)
+				return True
+			except ValueError:
+				return False
+		intpass=False
+		confidencepass=False
+		trialspass=False
+		dicepass=False
+		if(is_int(confidence) and is_int(trials) and is_int(dice)):
+			intpass=True
+			confidence=int(confidence)
+			trials=int(trials)
+			dice=int(dice)
+			if(confidence>=0 and confidence <=100):
+				confidencepass=True
+			if(trials>0):
+				trialspass=True
+			if(dice>0 and dice<=8):
+				dicepass=True
+			if(intpass and confidencepass and trialspass and dicepass):
+				return False
+		return True
+		
+			
 top=tk.Tk()	
 baseimg = cv2.imread('dicetest/white/baselinecropped.jpg', -1)
 #baseimg = cv2.imread('dicetest/white/white1cropped.jpg', -1)
@@ -858,7 +1084,9 @@ img=imagemanipulation.cv2pil(img)
 #a=TemplateCreationWindow(top,baseimg,img)
 #a.pack()
 
-a=AreaSetupWindow(top,baseimg,img)
-a.openWindow()
+#a=AreaSetupWindow(top,baseimg,img)
+#a.openWindow()
 
+a=TrialSetupWindow(top)
+a.openWindow()
 top.mainloop()

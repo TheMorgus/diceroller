@@ -27,6 +27,7 @@ PLACEHOLDERDICE = "rollerplaceholder.jpg"
 DICEIMAGEDIM = 285
 ROOTSTARTDIMX = 1000
 ROOTSTARTDIMY = 600
+SCREENPOSITION_YOFFSET=-65
 POPUPWIDTH = 400
 POPUPHEIGHT = 100
 TILTDEGLIMIT = 5
@@ -60,7 +61,7 @@ class  MenuBase(tk.Tk):
 		screen_width_center = int((monitorwidth-ROOTSTARTDIMX)/2)
 		screen_height_center = int((monitorheight-ROOTSTARTDIMY)/2)
 		location = str(ROOTSTARTDIMX) + 'x' + str(ROOTSTARTDIMY) + '+' \
-			+ str(screen_width_center) + '+' + str(screen_height_center)
+			+ str(screen_width_center) + '+' + str(screen_height_center+SCREENPOSITION_YOFFSET)
 		self.geometry(location)
 		self.runqueue = Queue()
 		self.accelqueue = accelqueue
@@ -79,12 +80,12 @@ class  MenuBase(tk.Tk):
 			"trialsetup":None,
 			"areasetup":None
 			}
-		
 		#self.openwindows=[]
 		self.currentwindow = IntroWindow(self)
 		self.currentwindow.openWindow()
 	def changeWindow(self,newwindow):
 		self.currentwindow.closeWindow()
+		print(self.setupdict)
 		self.currentwindow=newwindow
 		self.currentwindow.openWindow()
 	def addMenu(self):
@@ -360,8 +361,8 @@ class RollingSetupWindow(tk.Frame):
 											state='disabled')]
 		self.testingsetupbuttons=[tk.Button(self.trialsetupframe,
 										   text='Trial Setup',
-										   command=self.trialSetup,
-										   state='disabled'),
+										   state='disabled',
+										   command=lambda:self.pushWindow('trialsetup')),
 								 tk.Button(self.trialsetupframe,
 										   text='Dice Area Setup',
 										   command=lambda:self.pushWindow('areasetup'))]										
@@ -436,6 +437,9 @@ class RollingSetupWindow(tk.Frame):
 			img=baseimg.copy()
 			img=imagemanipulation.cv2pil(img)
 			window=AreaSetupWindow(self.master,baseimg,img)
+			self.master.changeWindow(window)
+		if window=='trialsetup':
+			window=TrialSetupWindow(self.master)
 			self.master.changeWindow(window)
 	def closeWindow(self):
 		self.destroy()
@@ -1112,6 +1116,235 @@ class TemplateCreationWindow(tk.Frame):
 			self.directionstext.set(directions.DIRECTIONSTEMPLATECROP3)
 			self.frameSwitch(frame='template')
 			self.canvas.unbind("<Button-1>")
+class TrialSetupWindow(tk.Frame):
+	def __init__(self,master):
+		tk.Frame.__init__(self,master)
+		self.master = master
+		
+		self.checkvars=[tk.IntVar(),
+						tk.IntVar(),
+						tk.IntVar(),
+						tk.IntVar()]
+		self.entryvars=[tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar()]	
+		self.trialsframe=tk.Frame(self)
+		self.trialsinnerframes=[tk.Frame(self.trialsframe,
+										 relief='sunken',
+										 borderwidth=2),
+								tk.Frame(self.trialsframe,
+										 relief='sunken',
+										 borderwidth=2)]
+		self.diceframe=tk.Frame(self,
+								relief='sunken',
+								borderwidth=2)
+		self.summaryframe=tk.Frame(self,
+								   relief='groove',
+								   borderwidth=2)
+		self.summarytext=tk.Text(self.summaryframe,
+								 height=5,
+								 width=30,
+								 state='disabled')
+		self.basebuttonframe=tk.Frame(self)
+		self.confidenceframe=tk.Frame(self.trialsinnerframes[0])
+		self.button=tk.Button(self.basebuttonframe,
+							  text='Finalize',
+							  state='disabled',
+							  command=self.finalize)
+		self.trialentryframe=tk.Frame(self.trialsinnerframes[1])
+		self.trialheaders=[tk.Label(self.trialsinnerframes[0],
+								   text='Choose Trial Type:'),
+						  tk.Label(self.trialsinnerframes[1],
+								   text='Choose Trial Iterations:')]
+		self.confidencelabel=tk.Label(self.confidenceframe,
+									  text='Desired\nConfidence:')
+		self.confidencepercent=tk.Label(self.confidenceframe,
+									  text='%')							  
+		self.confidenceentry=tk.Entry(self.confidenceframe,
+									  width=5,
+									  state='disabled',
+									  command=self.auditSetup(),
+									  textvariable=self.entryvars[0])
+		self.checkbuttons=[tk.Checkbutton(self.trialsinnerframes[0],
+										  text='Stop Trial if Confidence % Reached',
+										  variable=self.checkvars[0],
+										  command=lambda:self.trialTypeChange(0)),
+						   tk.Checkbutton(self.trialsinnerframes[0],
+										  text='Run All Trials',
+										  justify='left',
+										  variable=self.checkvars[1],
+										  command=lambda:self.trialTypeChange(1)),
+		                   tk.Checkbutton(self.trialsinnerframes[1],
+										  text='Run Suggested Trials - 1000',
+										  variable=self.checkvars[2],
+										  command=lambda:self.trialIterationChange(0)),
+						   tk.Checkbutton(self.trialsinnerframes[1],
+										  text='Select Trial Iterations',
+										  justify='left',
+										  variable=self.checkvars[3],
+										  command=lambda:self.trialIterationChange(1))]
+		self.trialslabel=tk.Label(self.trialentryframe,
+								  text='Desired\nTrial Iterations:')
+		self.trialsentry=tk.Entry(self.trialentryframe,
+								 width=5,
+								 state='disabled',
+								 command=self.auditSetup(),
+								 textvariable=self.entryvars[1])		
+		self.diceheader=tk.Label(self.diceframe,
+								 text='Enter Number of Dice (1-8)')
+		self.diceentry=tk.Entry(self.diceframe,
+								width=5,
+								command=self.auditSetup(),
+								textvariable=self.entryvars[2])
+		self.summaryheader=tk.Label(self.summaryframe,
+									text='Setup Summary')
+		self.textvar=tk.StringVar()
+							  
+		self.entryvars[0].trace('w',self.auditSetup)
+		self.entryvars[1].trace('w',self.auditSetup)
+		self.entryvars[2].trace('w',self.auditSetup)
+	def openWindow(self):
+		self.pack()
+		self.trialsframe.pack()
+		for frame in self.trialsinnerframes:
+			frame.pack(pady=2,
+					   fill='both')
+		self.diceframe.pack(pady=2,
+							fill='both')
+		self.summaryframe.pack()
+		self.trialheaders[0].pack(pady=15)
+		self.checkbuttons[0].pack(anchor='w')
+		self.confidenceframe.pack()
+		self.confidencelabel.pack(side='left')
+		self.confidenceentry.pack(side='left')
+		self.confidencepercent.pack(side='left')
+		self.trialheaders[1].pack(pady=15)
+		self.checkbuttons[1].pack(anchor='w')
+		self.checkbuttons[2].pack(anchor='w')
+		self.checkbuttons[3].pack(anchor='w')
+		self.trialentryframe.pack()
+		self.trialslabel.pack(side='left',
+							  anchor='e')
+		self.trialsentry.pack(side='left',
+							  anchor='e')
+		self.diceheader.pack()
+		self.diceentry.pack()	
+		self.summaryheader.pack()
+		self.summarytext.pack()
+		self.basebuttonframe.pack()
+		self.button.pack()
+		
+	def closeWindow(self):
+		self.destroy()
+	def finalize(self):
+		self.master.setupdict['trialsetup']=self.trialsetup
+		window=RollingSetupWindow(self.master)
+		self.master.changeWindow(window)						
+	def trialTypeChange(self,change):
+		trialchecks=[self.checkvars[0].get(),
+					 self.checkvars[1].get()]
+		if change==0 and trialchecks[0]==1:
+			self.checkbuttons[1].deselect()
+			self.confidenceentry.configure(state='normal')
+		if change==0 and trialchecks[0]==0:
+			self.confidenceentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==1:
+			self.checkbuttons[0].deselect()
+			self.confidenceentry.configure(state='disabled')
+		self.auditSetup()
+	def trialIterationChange(self,change):
+		trialchecks=[self.checkvars[2].get(),
+					 self.checkvars[3].get()]
+		if change==0 and trialchecks[0]==1:
+			self.checkbuttons[3].deselect()
+			self.trialsentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==0:
+			self.trialsentry.configure(state='disabled')
+		elif change==1 and trialchecks[1]==1:
+			self.checkbuttons[2].deselect()
+			self.trialsentry.configure(state='normal')
+		self.auditSetup()
+	def auditSetup(self,a=1,b=2,c=3):
+		checks=[]
+		for check in self.checkvars:
+			checks.append(check.get())
+		confidence=self.entryvars[0].get()
+		trials=self.entryvars[1].get()
+		dice=self.entryvars[2].get()
+		if checks[0] and confidence=='':
+			confidence=None
+		elif checks[0]:
+			pass
+		elif checks[1]:
+			confidence='0'
+		else:
+			confidence=None
+		if checks[3] and trials=='':
+			trials=None
+		elif checks[3]:
+			pass
+		elif checks[2]:
+			trials='1000'
+		else:
+			trials=None
+		if dice=='':
+			dice=None
+		if None in (confidence,trials,dice):
+			self.summarytext.configure(state='normal')
+			self.summarytext.delete('0.0','10.10')
+			self.summarytext.insert('0.0',"Setup Incomplete")
+			self.summarytext.configure(state='disabled')
+			self.button.configure(state='disabled')
+		elif self.invalidEntryCheck(confidence,trials,dice):
+				text='Invalid Entry'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+				self.button.configure(state='disabled')
+		else:
+			if confidence=='0':
+				text='There will be '+trials+' trials run'+\
+					 ' on '+dice+' dice.'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+			else:
+				text='There will be a max of '+trials+'\ntrials ran, '+\
+					 'which will end\nearly if '+confidence+'% confidence\n'+\
+					 'is achieved using '+dice+' dice.'
+				self.summarytext.configure(state='normal')
+				self.summarytext.delete('0.0','10.10')
+				self.summarytext.insert('0.0',text)
+				self.summarytext.configure(state='disabled')
+			self.trialsetup=[confidence,trials,dice]
+			self.button.configure(state='normal')
+	def invalidEntryCheck(self,confidence,trials,dice):
+		def is_int(s):
+			try:
+				int(s)
+				return True
+			except ValueError:
+				return False
+		intpass=False
+		confidencepass=False
+		trialspass=False
+		dicepass=False
+		if(is_int(confidence) and is_int(trials) and is_int(dice)):
+			intpass=True
+			confidence=int(confidence)
+			trials=int(trials)
+			dice=int(dice)
+			if(confidence>=0 and confidence <=100):
+				confidencepass=True
+			if(trials>0):
+				trialspass=True
+			if(dice>0 and dice<=8):
+				dicepass=True
+			if(intpass and confidencepass and trialspass and dicepass):
+				return False
+		return True
 class AreaSetupWindow(tk.Frame):
 	def __init__(self,master,baseimg,img):
 		tk.Frame.__init__(self,master)
@@ -1275,8 +1508,8 @@ class RollingWindow(tk.Frame):
 		tk.Frame.__init__(self, master)
 		self.master = master
 		
-		self.upperframe = tk.Frame(self.master)
-		self.lowerframe = tk.Frame(self.master,highlightbackground='black',
+		self.upperframe = tk.Frame(self)
+		self.lowerframe = tk.Frame(self,highlightbackground='black',
 			highlightthickness=1, bd=10)
 		
 		self.upperleftframe = tk.Frame(self.upperframe,highlightbackground='black',
@@ -1310,6 +1543,7 @@ class RollingWindow(tk.Frame):
 		self.buttonStop = tk.Button(self.buttonframe,text='Stop')
 		self.buttonQuit = tk.Button(self.buttonframe,text='Quit',command=self.master.closeAll)
 	def openWindow(self):
+		self.pack()
 		self.upperframe.pack()
 		self.lowerframe.pack()
 		
