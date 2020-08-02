@@ -6,7 +6,12 @@ import picamera
 from PIL import Image, ImageTk
 
 RESIZESCALE=0.3
+def showImage(img):#for testing purposes
+	cv2.imshow('image',img)
+	cv2.namedWindow("image")
 
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()
 def resizeImage(img,scale=RESIZESCALE):
 	img = cv2.pyrDown(img)
 	#img = cv2.pyrDown(img)

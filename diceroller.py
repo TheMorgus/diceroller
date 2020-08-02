@@ -1,5 +1,6 @@
 import tkinter as tk
 import math
+import os
 from PIL import Image, ImageTk
 from threading import Thread
 from queue import Queue
@@ -8,6 +9,7 @@ import MPU6050 as accelerometer
 from tkinter import filedialog
 import imagemanipulation
 import directions
+import filemanipulation as fm
 
 TITLETEXT = "Group 5\nAutomated Dice Roller"
 INTROTEXT = "Group 5 Members: Adrian Bashi, Christian Moriondo,\n"\
@@ -51,7 +53,7 @@ DICETEMPLATESPACE=3
 DICECROPS=(250,250,600,600)
 TEMPLATEWINDOWSCALE=0.4 #Resize scale for images in dice template window
 BASEIMAGESCALE=1
-
+WORKINGDIRECTORY=os.getcwd()
 class  MenuBase(tk.Tk):
 	def __init__(self, accelqueue):
 		tk.Tk.__init__(self)
@@ -67,7 +69,6 @@ class  MenuBase(tk.Tk):
 		self.accelqueue = accelqueue
 		self.x=0
 		self.y=0
-		
 		
 		accelerometer.bus = accelerometer.smbus.SMBus(1) 	# or bus = smbus.SMBus(0) for older version boards
 		accelerometer.Device_Address = 0x68
@@ -85,7 +86,6 @@ class  MenuBase(tk.Tk):
 		self.currentwindow.openWindow()
 	def changeWindow(self,newwindow):
 		self.currentwindow.closeWindow()
-		print(self.setupdict)
 		self.currentwindow=newwindow
 		self.currentwindow.openWindow()
 	def addMenu(self):
@@ -197,10 +197,8 @@ class AccelPopupWindow(tk.Frame):
 	def pushWindow(self):
 		self.callingframe.popupopen = 0
 		accelwindow=AccelWindow(self.rootmaster)
-		print(self.rootmaster)
 		self.rootmaster.changeWindow(accelwindow)
 		self.master.destroy()
-
 class AccelWindow(tk.Frame):
 	def __init__(self, master=None):
 		tk.Frame.__init__(self, master)
@@ -275,9 +273,9 @@ class AccelWindow(tk.Frame):
 		
 		self.loopAccel()
 	def pushWindow(self):
+		self.master.addMenu()
 		window=RollingSetupWindow(self.master)
 		self.master.changeWindow(window)
-		self.master.addMenu()
 	def drawCanvasLimits(self):
 		self.xcanvas.create_line(CANVASCENTER-MAXX,CANVASCENTER-MAXY,
 			CANVASCENTER+MAXX,CANVASCENTER+MAXY, fill="#f11")
@@ -365,10 +363,14 @@ class RollingSetupWindow(tk.Frame):
 										   command=lambda:self.pushWindow('trialsetup')),
 								 tk.Button(self.trialsetupframe,
 										   text='Dice Area Setup',
-										   command=lambda:self.pushWindow('areasetup'))]										
+										   command=lambda:self.pushWindow('areasetup')),
+								 tk.Button(self.trialsetupframe,
+										   text='Load Area Setup',
+										   command=self.loadArea)]										
 		self.movementbuttons=[tk.Button(self.movementbuttonsframe,
 										 text='Start',
-										 state='disabled'),
+										 state='disabled',
+										 command=self.start),
 							   tk.Button(self.movementbuttonsframe,
 										 text='Exit',
 										 command=self.exit)]
@@ -415,6 +417,7 @@ class RollingSetupWindow(tk.Frame):
 			self.checkboxlabels[x].grid(row=x,column=1,sticky='w')
 			
 		self.auditCheckboxesButtons() #check for complete pre-testing procedures
+		self.parseClearance()
 	def pushWindow(self,window):
 		if window=="bgthresholding":
 			baseimg=imagemanipulation.getCaptureDUMMY()
@@ -445,6 +448,11 @@ class RollingSetupWindow(tk.Frame):
 		self.destroy()
 	def exit(self):
 		self.master.close()
+	def start(self):
+		window=RollingWindow(self.master)
+		self.master.changeWindow(window)
+	def auditMenu(self):
+		self.master.menu.auditSetup(self.checkboxstate)
 	def auditCheckboxesButtons(self):
 		if self.master.setupdict["thresholdvals"]!=None:
 			self.checkboxes[0].select()
@@ -455,6 +463,7 @@ class RollingSetupWindow(tk.Frame):
 		if self.master.setupdict["areasetup"]!=None:
 			self.checkboxes[3].select()
 			self.enableButtons()
+		self.auditMenu()
 	def enableButtons(self):
 		for button in self.thresholdingbuttons:
 			button.configure(state='normal')
@@ -463,16 +472,39 @@ class RollingSetupWindow(tk.Frame):
 		for button in self.testingsetupbuttons:
 			button.configure(state='normal')
 	def loadBackgroundThreshold(self):
-		self.checkboxes[0].select()	
-		self.parseClearance()
-		path=filedialog.askopenfilename(title='Select File')
+		path=''
+		path=filedialog.askopenfilename(title='Select File',
+									    initialdir=(WORKINGDIRECTORY+'/Save'))
+		if (path not in['',()]):
+			thresholds=fm.load_data(path)
+			for x in range(len(thresholds)):
+				thresholds[x]=int(thresholds[x])
+			self.master.setupdict['thresholdvals']=thresholds
+			self.checkboxes[0].select()	
+			self.auditCheckboxesButtons()
+			self.parseClearance()
 	def loadTemplates(self):
-		self.checkboxes[1].select()	
-		self.parseClearance()
-		path=filedialog.askopenfilename(title='Select File')
-	def trialSetup(self):
-		self.checkboxes[2].select()	
-		self.parseClearance()	
+		path=''
+		path=filedialog.askopenfilename(title='Select File',
+									    initialdir=(WORKINGDIRECTORY+'/Save'))
+		if (path not in['',()]):
+			templates=fm.dice_load(path)
+			self.master.setupdict['dicetemplates']=templates
+			self.checkboxes[1].select()
+			self.auditCheckboxesButtons()	
+			self.parseClearance()
+	def loadArea(self):
+		path=''
+		path=filedialog.askopenfilename(title='Select File',
+									    initialdir=(WORKINGDIRECTORY+'/Save'))
+		if (path not in['',()]):
+			area=fm.load_data(path)
+			for x in range(len(area)):
+				area[x]=int(area[x])
+			self.master.setupdict['areasetup']=area
+			self.checkboxes[3].select()
+			self.auditCheckboxesButtons()
+			self.parseClearance()
 	def parseClearance(self):
 		clearance=True
 		for checkbox in self.checkboxstate:
@@ -799,6 +831,7 @@ class TemplateCreationWindow(tk.Frame):
 		self.img=img
 		self.baseimg=baseimg
 		self.diceimgs=[]
+		self.diceimgscv=[]
 		self.imagesize=imagemanipulation.imageSize(baseimg)
 		self.points=[(None,None),(None,None)]
 		self.tempbefore=None
@@ -989,6 +1022,7 @@ class TemplateCreationWindow(tk.Frame):
 			button.configure(state='disabled')
 	def addTemplate(self):
 		finishedimgs=[]
+		finishedimgscv=[]
 		self.lowerbuttons[2].configure(state='normal')
 		for x in range(4):
 			img=imagemanipulation.adjustImage(self.tempopencv,
@@ -997,7 +1031,9 @@ class TemplateCreationWindow(tk.Frame):
 										xchange=self.xadjustment,
 										ychange=self.yadjustment)
 			finishedimgs.append(imagemanipulation.cv2pil(img))
+			finishedimgscv.append(img)
 		self.diceimgs.append(finishedimgs)
+		self.diceimgscv.append(finishedimgscv)
 		for x in range(len(self.diceimgs)):
 			for y in range(4):
 				self.diceimglabels[x][y].configure(image=self.diceimgs[x][y])	
@@ -1014,6 +1050,7 @@ class TemplateCreationWindow(tk.Frame):
 			for x in range(4):
 				self.diceimglabels[lastindex-1][x].configure(image='')
 			self.diceimgs.pop()
+			self.diceimgscv.pop()
 			if len(self.diceimgs)>0:
 				for x in range(len(self.diceimgs)):
 					for y in range(4):
@@ -1091,7 +1128,7 @@ class TemplateCreationWindow(tk.Frame):
 		self.temptemplateimgs[0].configure(image=self.tempbefore)
 	def finish(self):
 		window=RollingSetupWindow(self.master)
-		self.master.setupdict["dicetemplates"]=self.diceimgs
+		self.master.setupdict["dicetemplates"]=self.diceimgscv
 		self.master.changeWindow(window)	
 	def callback(self,event):
 		temppoint=(event.x,event.y)
@@ -1598,16 +1635,55 @@ class BaseMenu(tk.Menu):
 		self.filemenu.append(tk.Menu(self,tearoff=0))
 		self.add_cascade(label='File',menu=self.filemenu[0])
 		self.add_cascade(label='About',menu=self.filemenu[1])
+		self.menuSetup()
+	def menuSetup(self):
+		self.filemenu[0].add_command(label="Save Dice Templates", accelerator='(F5)',
+			command=self.saveTemplates, state='disabled')
+		self.filemenu[0].add_command(label="Save Background Threshold", accelerator='(F5)',
+			command=self.saveBackgroundThresholds, state='disabled')
+		self.filemenu[0].add_command(label="Save Area Setup", accelerator='(F5)',
+			command=self.saveAreaSetup, state='disabled')
+		self.filemenu[0].add_command(label="Exit", accelerator='(Crtl + X)',
+			command=self.master.exit)
+		self.master.config(menu=self)
+	def menuTrial(self):
 		self.filemenu[0].add_command(label="Save", accelerator='(F5)',
 			command=self.master.exit)
 		self.filemenu[0].add_command(label="Load", accelerator='(F6)',
 			command=self.master.exit)
-		self.filemenu[0].add_command(label="Exit", accelerator='(Crtl + X)',
-			command=self.master.exit)
 		self.master.config(menu=self)
-	
-
-
+	def auditSetup(self,checkboxes):
+		for x in range(3):
+			self.filemenu[0].entryconfig(x,state='disabled')
+		if checkboxes[0].get()==1:
+			self.filemenu[0].entryconfig(1,state='normal')
+		if checkboxes[1].get()==1:
+			self.filemenu[0].entryconfig(0,state='normal')
+		if checkboxes[3].get()==1:
+			self.filemenu[0].entryconfig(2,state='normal')
+	def saveTemplates(self):
+		type_=[('Template Files','*.dtemps')]
+		path=filedialog.asksaveasfilename(title='Select File',
+										  filetypes=type_,
+										  initialdir=(WORKINGDIRECTORY+'/Save'))
+		if(path != ''):
+			fm.dice_save(path,self.master.setupdict['dicetemplates'])
+		
+	def saveBackgroundThresholds(self):
+		type_=[('Background Threshold Files','*.bgt')]
+		path=filedialog.asksaveasfilename(title='Select File',
+										  filetypes=type_,
+										  initialdir=(WORKINGDIRECTORY+'/Save'))
+		if(path != ''):
+			fm.store_data(path,self.master.setupdict['thresholdvals'])
+	def saveAreaSetup(self):
+		type_=[('Area Setup Files','*.as')]
+		path=filedialog.asksaveasfilename(title='Select File',
+										  filetypes=type_,
+										  initialdir=(WORKINGDIRECTORY+'/Save'))
+		if(path != ''):
+			fm.store_data(path,self.master.setupdict['areasetup'])
+		
 
 accelqueue = Queue()
 #mainthread=Thread(target=thread_main,args=("Thread-1",accelqueue))
