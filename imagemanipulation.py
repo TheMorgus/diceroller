@@ -128,6 +128,13 @@ def getCapture():
 	data=np.fromstring(stream.getvalue(),dtype=np.uint8)
 	image=cv2.imdecode(data,1)
 	return(image)
+def getCaptureTest(num):
+	if num==0:
+		path = 'dicetest/white/white0cropped.jpg'
+	else:
+		path = 'dicetest/white/white'+str(num)+'cropped.jpg'
+	img = cv2.imread(path, -1)
+	return img
 def convertHSV(img):
 	img=cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
 	return img

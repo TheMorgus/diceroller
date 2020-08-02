@@ -2,11 +2,12 @@ import tkinter as tk
 from tkinter import filedialog
 import math
 import time
-import dicedetector
+import dicedetector as dd
 import cv2
 import imagemanipulation
 import cameracontrol
-
+import solenoidcontrol as sc
+from scipy.stats import chi2
 DIRECTIONSCOLORCAILBRATION='Directions: Place a set of dice in the image capture area,\n'+\
 								  'then adjust Hue,Saturation,and Lightness thresholds until:\n'+\
 								  '1)Dice Box is uniform white with little to no black holes\n'+\
@@ -34,6 +35,10 @@ DIRECTIONSTEMPLATECROP3="DIRECTIONS\nThe image on the left is the image before m
 DICETEMPLATESPACE=3
 DICECROPS=(250,250,600,600)
 BASEIMAGESCALE=1
+
+CANVASESTIMATEHEIGHT=20
+CANVASESTIMATEWIDTH=200
+CANVASESTIMATEOFFSET=2
 #Using the previous thresholding values gathered from the backgroundCropWindow
 #as a base, the user is able to further refine the background filtering with
 #the dice to be tested on the rolling space. This feature is mandatory to ensure
@@ -840,7 +845,6 @@ class TrialSetupWindow(tk.Frame):
 	def __init__(self,master):
 		tk.Frame.__init__(self,master)
 		self.master = master
-		
 		self.checkvars=[tk.IntVar(),
 						tk.IntVar(),
 						tk.IntVar(),
@@ -848,7 +852,7 @@ class TrialSetupWindow(tk.Frame):
 		self.entryvars=[tk.StringVar(),
 						tk.StringVar(),
 						tk.StringVar()]	
-		self.trialsframe=tk.Frame(self.master,)
+		self.trialsframe=tk.Frame(self.master)
 		self.trialsinnerframes=[tk.Frame(self.master,
 										 relief='sunken',
 										 borderwidth=2),
@@ -1060,13 +1064,271 @@ class TrialSetupWindow(tk.Frame):
 			if(intpass and confidencepass and trialspass and dicepass):
 				return False
 		return True
+class RollingWindow(tk.Frame):
+	def __init__(self, master=None):
+		tk.Frame.__init__(self, master)
+		self.master = master
+		self.last10=[]
+		self.currentroll=int()
+		self.currenttrial=0
+		self.invalidrolls=0
+		trialsetup=self.master.setupdict['trialsetup']
+		self.confidence=trialsetup[0]
+		self.totaltrials=trialsetup[1]
+		self.dice=trialsetup[2]
+		self.dicecounts=[0,0,0,0,0,0]
+		self.dicepercents=[0,0,0,0,0,0]
+		self.dicestats=[tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar(),
+						tk.StringVar()]
+		self.dicecountvars=[tk.IntVar(),
+							tk.IntVar(),
+							tk.IntVar(),
+							tk.IntVar(),
+							tk.IntVar(),
+							tk.IntVar()]
+		self.dicerollvar=tk.StringVar()
+		self.currenttrialvar=tk.StringVar()
+		self.invalidtrialvar=tk.StringVar()
+		self.dicerollvar.set("DICE ROLLED: ")
+		self.currenttrialvar.set("CURRENT ROLL: #"+str(self.currenttrial))
+		self.invalidtrialvar.set("INVALID ROLL(s): #"+str(self.currenttrial))
+		self.upperframe = tk.Frame(self)
+		self.lowerframe = tk.Frame(self,highlightbackground='black',
+			highlightthickness=1, bd=10)
 		
+		self.upperleftframe = tk.Frame(self.upperframe,highlightbackground='black',
+			highlightthickness=1, bd=10)
+		self.uppermiddleframe = tk.Frame(self.upperframe)
+		self.upperrightframe = tk.Frame(self.upperframe,highlightbackground='black',
+			highlightthickness=1, bd=10)
+		self.lowerupperframe=tk.Frame(self.lowerframe)
+		self.lowerlowerframe=tk.Frame(self.lowerframe)
+		self.timeremainingframe=tk.Frame(self.lowerlowerframe)
+		self.statisticframe=tk.Frame(self)
+		self.buttonframe=tk.Frame(self.lowerframe)
+		
+		
+		self.timeslider=tk.Canvas(self.timeremainingframe,height=CANVASESTIMATEHEIGHT,
+			width=CANVASESTIMATEWIDTH,highlightbackground='black',highlightthickness=1)
+		
+		self.labeldiceimage = tk.Label(self.uppermiddleframe, text='DICE CAPTURE')
+		self.labellistbox = tk.Label(self.upperrightframe,
+									 text='Last 10 Rolls')
+		self.statisticheaderstop=[tk.Label(self.statisticframe,
+										   text='Dice 1'),
+								  tk.Label(self.statisticframe,
+										   text='Dice 2'),
+								  tk.Label(self.statisticframe,
+										   text='Dice 3'),
+								  tk.Label(self.statisticframe,
+										   text='Dice 4'),
+								  tk.Label(self.statisticframe,
+										   text='Dice 5'),
+								  tk.Label(self.statisticframe,
+										   text='Dice 6')]
+		self.statisticheadersleft=[tk.Label(self.statisticframe,
+										    text='Times Rolled'),
+								   tk.Label(self.statisticframe,
+										    text='Current %'),
+								   tk.Label(self.statisticframe,
+										    text='Expected %'),
+								   tk.Label(self.statisticframe,
+										    text='Confidence\nUnloaded%')]
+		self.labelexpected=[tk.Label(self.statisticframe,
+									 text='0.166..'),
+							tk.Label(self.statisticframe,
+									 text='0.166..'),
+							tk.Label(self.statisticframe,
+									 text='0.166..'),
+							tk.Label(self.statisticframe,
+									 text='0.166..'),
+							tk.Label(self.statisticframe,
+									 text='0.166..'),
+							tk.Label(self.statisticframe,
+									 text='0.166..')]
+		self.labelcurrentpercent=[]
+		for x in range(6):
+			self.labelcurrentpercent.append(tk.Label(self.statisticframe,
+													 textvariable=self.dicestats[x]))
+		self.labeldicecounts=[]	
+		for x in range(6):
+			self.labeldicecounts.append(tk.Label(self.statisticframe,
+												 textvariable=self.dicecountvars[x]))
+		self.labeldicerolled = tk.Label(self.upperleftframe, textvariable=self.dicerollvar)
+		self.labelrollnumber = tk.Label(self.upperleftframe, 
+										textvariable=self.currenttrialvar)
+		self.labelinvalidroll = tk.Label(self.upperleftframe, 
+										 textvariable=self.invalidtrialvar)
+		self.labeltotalrolls = tk.Label(self.upperleftframe, text='TOTAL ROLLS:1000')
+		self.labeltimeleft = tk.Label(self.lowerupperframe, text='ESTIMATED TIME REMAINING')
+		self.labeltimeclock = tk.Label(self.timeremainingframe, text='58min 23sec')
+		
+		self.dicelist = tk.Listbox(self.upperrightframe, selectmode='single',width=self.dice*3)
+		self.panel = tk.Label(self.uppermiddleframe)
+		
+		self.buttonstart = tk.Button(self.buttonframe,
+									 text='Start',
+									 command=self.start)
+		self.buttonpause = tk.Button(self.buttonframe,
+									 text='Pause',
+									 state='disabled',
+									 command=self.pause)
+		self.buttonquit = tk.Button(self.buttonframe,
+									text='Quit',
+									padx=10,
+									command=self.quit)
+	def openWindow(self):
+		self.pack()
+		self.upperframe.pack()
+		self.lowerframe.pack(side='right')
+		
+		self.upperleftframe.pack(side='left')
+		self.uppermiddleframe.pack(side='left')
+		self.upperrightframe.pack(side='left')
+		self.statisticframe.pack(side='left')
+		for x in range(6):
+			self.statisticheaderstop[x].grid(row=0,column=x+1)
+		for x in range(4):
+			self.statisticheadersleft[x].grid(row=x+1,column=0)
+		self.lowerupperframe.pack(side='top')
+		for x in range(6):
+			self.labelexpected[x].grid(row=3,column=x+1)
+		for x in range(6):
+			self.labelcurrentpercent[x].grid(row=2,column=x+1)
+		for x in range(6):
+			self.labeldicecounts[x].grid(row=1,column=x+1)
+		self.lowerlowerframe.pack(side='top')
+		self.timeremainingframe.pack(side='top')
+		self.buttonframe.pack(side='top')
+		
+		self.labeldiceimage.pack(side='top')
+		self.labellistbox.pack(side='top')
+		self.labeldicerolled.pack(side='top',pady=15)
+		self.labelrollnumber.pack(side='top',pady=15)
+		self.labelinvalidroll.pack(side='top',pady=15)
+		self.labeltotalrolls.pack(side='top',pady=15)
+		self.labeltimeleft.pack(side='top')
+		self.labeltimeclock.pack(side='right')
+		
+		self.dicelist.pack(side='top')
+		self.panel.pack(side='top')
+		
+		self.timeslider.pack(side='left')
+		
+		self.buttonstart.pack(side='left')
+		self.buttonpause.pack(side='left')
+		self.buttonquit.pack(side='left')
+	def closeWindow(self):
+		pass
+	def start(self):
+		self.buttonpause.configure(state='normal')
+		self.buttonstart.configure(state='disabled')
+		self.runIteration(test=True)
+	def pause(self):
+		self.buttonpause.configure(state='disabled')
+		self.buttonstart.configure(state='normal')
+	def quit(self):
+		pass
+	def runIteration(self,test=True):
+		if test==True:
+			sc.runSolenoids()
+			time.sleep(.2)
+			strial=str(self.currenttrial+self.invalidrolls+1)
+			num=strial[-1]
+			img=imagemanipulation.getCaptureTest(num)
+			img=imagemanipulation.resizeImage(img,scale=0.5)
+			isodiceimg,mask=dd.removeBackground(img,self.master.setupdict['thresholdvals'])
+			dicearray,rects=dd.isolateDice(isodiceimg,img)
+			#e1=cv2.getTickCount() Measuring performance, for 6 dice takes around 0.12 seconds to analyze an image
+			dicevals=dd.discernDice(self.master.setupdict['dicetemplates'],dicearray)
+			dd.drawDiceVals(dicevals,rects,img)
+			if len(dicevals)==self.dice:
+				self.currenttrial=self.currenttrial+1
+				self.currenttrialvar.set("CURRENT ROLL: #"+str(self.currenttrial))
+				dicevals.sort()
+				self.dicerollvar.set("DICE ROLLED: "+str(dicevals))
+				if len(self.last10)<10:
+					self.last10.append(dicevals)
+				else:
+					self.last10.pop(0)
+					self.last10.append(dicevals)
+				self.printLastTen()
+				self.img=imagemanipulation.cv2pil(img)
+				self.labeldiceimage.configure(image=self.img)
+				self.pushDiceCounts(dicevals)
+				self.printStats()
+				if(self.currenttrial>5):
+					self.updateTime()
+			else:
+				self.invalidrolls=self.invalidrolls+1
+				self.invalidtrialvar.set("INVALID ROLL(s): #"+str(self.invalidrolls))
+			#e2=cv2.getTickCount()
+			if(self.currenttrial<self.totaltrials):
+				self.after(1000,self.runIteration)
+		else:
+			sc.runSolenoids()
+			time.wait(200)
+			img=imagemanipulation.getCapture()
+			img=imagemanipulation.resizeImage(img)
+			isodiceimg,mask = removeBackground(img,self.master.setupdict['thresholdvals'])
+			dicearray,rects=isolateDice(isodiceimg)
+			templates = getTemplates()
+			templates = completeTemplates(templates)
+			#e1=cv2.getTickCount() Measuring performance, for 6 dice takes around 0.12 seconds to analyze an image
+			dicevals=discernDice(templates,dicearray,img)
+			drawDiceVals(dicevals,rects,img)
+			self.img=imagemanipulation.cv2pil(img)
+			self.dicelabelimage.configure(self.img)
+			#e2=cv2.getTickCount()
+	def newCapture(self):
+		pass
+	def pushDiceCounts(self,dicevals):
+		for x in dicevals:
+			if x==1:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+			if x==2:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+			if x==3:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+			if x==4:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+			if x==5:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+			if x==6:
+				self.dicecounts[x-1]=self.dicecounts[x-1]+1
+		for x in range(6):
+			self.dicepercents[x]=self.dicecounts[x]/(self.currenttrial*self.dice)
+		x2=0
+		for x in range(6):
+			x2=x2+((self.dicepercents[x]-(1/6))*(self.dicepercents[x]-(1/6)))/(1/6)
+		
+		p=chi2.sf(x2,5)
+		print(('p ',p,'x2 ',x2))
+	def printStats(self):
+		for x in range(6):
+			self.dicestats[x].set(str(round(self.dicepercents[x],3)))
+		for x in range(6):
+			self.dicecountvars[x].set(self.dicecounts[x])
+	def printLastTen(self):
+		self.dicelist.delete(0,10)
+		for x in range(len(self.last10)):
+			self.dicelist.insert(x,str(len(self.last10)-x)+str(': ')+str(self.last10[x]))
+	def updateTime(self):
+		self.timeslider.delete(all)
+		percent=self.currenttrial/self.totaltrials
+		width=percent*CANVASESTIMATEWIDTH
+		self.timeslider.create_rectangle(0,CANVASESTIMATEOFFSET,
+			width,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')		
 			
 top=tk.Tk()	
 baseimg = cv2.imread('dicetest/white/baselinecropped.jpg', -1)
 #baseimg = cv2.imread('dicetest/white/white1cropped.jpg', -1)
 #baseimg = cv2.imread('dicetest/white/backgroundcrop.jpg', -1)
-baseimg = dicedetector.resizeImage(baseimg)
+baseimg = dd.resizeImage(baseimg)
 img=baseimg.copy()
 img=imagemanipulation.cv2pil(img)
 
@@ -1087,6 +1349,18 @@ img=imagemanipulation.cv2pil(img)
 #a=AreaSetupWindow(top,baseimg,img)
 #a.openWindow()
 
-a=TrialSetupWindow(top)
+#a=TrialSetupWindow(top)
+#a.openWindow()
+templates = dd.getTemplates()
+templates = dd.completeTemplates(templates)
+setupdict={'areasetup':[0,5,5,500,500],
+		   'thresholdvals':[21,0,231,90,255,92],
+		   'dicetemplates':templates,
+		   'trialsetup':[95,20,6]}
+top.setupdict=setupdict
+print(chi2.sf(1,4))
+
+a=RollingWindow(top)
 a.openWindow()
+
 top.mainloop()

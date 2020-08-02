@@ -1545,6 +1545,8 @@ class RollingWindow(tk.Frame):
 		tk.Frame.__init__(self, master)
 		self.master = master
 		
+		self.last10=[]
+		
 		self.upperframe = tk.Frame(self)
 		self.lowerframe = tk.Frame(self,highlightbackground='black',
 			highlightthickness=1, bd=10)
@@ -1571,7 +1573,7 @@ class RollingWindow(tk.Frame):
 		self.labelTimeLeft = tk.Label(self.lowerupperframe, text='ESTIMATED TIME REMAINING')
 		self.labelTimeClock = tk.Label(self.timeremainingframe, text='58min 23sec')
 		
-		self.diceList = tk.Listbox(self.upperrightframe, selectmode='single',width=8)
+		self.dicelist = tk.Listbox(self.upperrightframe, selectmode='single',width=8)
 		self.img = ImageTk.PhotoImage(Image.open(PLACEHOLDERDICE))
 		self.panel = tk.Label(self.uppermiddleframe, image=self.img)
 		
@@ -1606,25 +1608,16 @@ class RollingWindow(tk.Frame):
 		
 		self.timeSlider.pack(side='left')
 		
-		
-		self.diceList.insert(0,'  1:[1,3]')
-		self.diceList.insert(1,'  2:[5,3]')
-		self.diceList.insert(2,'  3:[1,4]')
-		self.diceList.insert(3,'  4:[6,6]')
-		self.diceList.insert(4,'  5:[2,6]')
-		self.diceList.insert(5,'  6:[1,2]')
-		self.diceList.insert(6,'  7:[6,2]')
-		self.diceList.insert(7,'  8:[5,5]')
-		self.diceList.insert(8,'  9:[2,5]')
-		self.diceList.insert(9,' 10:[2,1]')
-		
 		self.buttonStart.pack(side='left')
 		self.buttonPause.pack(side='left')
 		self.buttonStop.pack(side='left')
 		self.buttonQuit.pack(side='left')
 		
 		self.timeSlider.create_rectangle(0,CANVASESTIMATEOFFSET,
-			CANVASESTIMATEWIDTH/3,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')			
+			CANVASESTIMATEWIDTH/3,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')
+			
+	def printLastTen(self):
+		self.diceList.delete(0,10)		
 class BaseMenu(tk.Menu):
 	def __init__(self, master=None):
 		tk.Menu.__init__(self, master)
@@ -1668,7 +1661,6 @@ class BaseMenu(tk.Menu):
 										  initialdir=(WORKINGDIRECTORY+'/Save'))
 		if(path != ''):
 			fm.dice_save(path,self.master.setupdict['dicetemplates'])
-		
 	def saveBackgroundThresholds(self):
 		type_=[('Background Threshold Files','*.bgt')]
 		path=filedialog.asksaveasfilename(title='Select File',
