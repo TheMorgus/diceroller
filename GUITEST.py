@@ -1253,6 +1253,7 @@ class RollingWindow(tk.Frame):
 	def start(self):
 		self.buttonpause.configure(state='normal')
 		self.buttonstart.configure(state='disabled')
+		self.buttonstats.configure(state='disabled')
 		self.run=True
 		self.runIteration(test=True)
 	def pause(self):
@@ -1293,6 +1294,7 @@ class RollingWindow(tk.Frame):
 				self.labeldiceimage.configure(image=self.img)
 				self.pushDiceCounts(dicevals)
 				self.calculateConfidence()
+				self.calculateChi()
 				self.printStats()
 				if(self.currenttrial>5):
 					self.updateTime()
@@ -1334,7 +1336,14 @@ class RollingWindow(tk.Frame):
 			error=z/n**(0.5)*(successes*failures)**(1/2)
 			upper=successes+error
 			lower=successes-error
-			print((lower,upper))
+	def calculateChi(self):
+		x2=0
+		for x in range(6):
+			expectedroll=self.currenttrial/6*self.dice
+			num=(self.dicecounts[x]-expectedroll)**2
+			den=expectedroll
+			x2=x2+num/den
+		self.chi=chi2.sf(x2,5)
 	def pushDiceCounts(self,dicevals):
 		for x in dicevals:
 			if x==1:
@@ -1351,12 +1360,6 @@ class RollingWindow(tk.Frame):
 				self.dicecounts[x-1]=self.dicecounts[x-1]+1
 		for x in range(6):
 			self.dicepercents[x]=self.dicecounts[x]/(self.currenttrial*self.dice)
-		x2=0
-		for x in range(6):
-			x2=x2+(self.currenttrial-self.dicecounts[x])**2/(self.currenttrial)
-		
-		p=chi2.sf(x2,5)
-		print(('p ',p,'x2 ',x2))
 	def printStats(self):
 		for x in range(6):
 			self.dicestats[x].set(str(round(self.dicepercents[x],3)))
@@ -1380,6 +1383,7 @@ class StatsWindow(tk.Frame):
 		
 		self.baseframe=tk.Frame(self.master)
 		self.statsframe=tk.Frame(self.baseframe)
+		self.interpframe=tk.Frame(self.baseframe)
 		self.buttonframe=tk.Frame(self.baseframe)
 		
 		self.graph=tk.Canvas(self.baseframe,
@@ -1392,12 +1396,14 @@ class StatsWindow(tk.Frame):
 		self.baseframe.pack()
 		self.graph.pack(pady=20)
 		self.statsframe.pack()
+		self.interpframe.pack()
 		self.buttonframe.pack()
 		
 		self.getStats()
 		
 		self.drawGraph()
 		self.drawStats()
+		self.drawInterp()
 		self.drawButtons()
 	def getStats(self):
 		self.dicecounts=self.callingwindow.dicecounts
@@ -1441,7 +1447,7 @@ class StatsWindow(tk.Frame):
 			def drawDotted(base,intervalsheights,dottedlength=4):
 				traversed=0
 				line=0
-				while(traversed<abs(intervalsheights[0]-intervalsheights[1])):
+				while(traversed<abs(intervalsheights[0]-intervalsheights[1]-dottedlength)):
 					adjust=line*dottedlength*2
 					self.graph.create_line(base,modifiedheight-intervalsheights[1]-adjust,
 										   base,modifiedheight-intervalsheights[1]-dottedlength-adjust,
@@ -1463,38 +1469,42 @@ class StatsWindow(tk.Frame):
 		def drawIdeal(idealheight,color='green',dottedlength=4):
 			traversed=0
 			line=0
-			while(traversed<STATSSCREEN_WIDTH):
+			while(traversed<=STATSSCREEN_WIDTH):
 					adjust=line*dottedlength*2
 					self.graph.create_line(adjust,modifiedheight-idealheight,
 										   adjust+dottedlength,modifiedheight-idealheight,
 										   fill=color)
 					traversed=traversed+dottedlength*2
 					line=line+1
+			self.graph.create_text(32,modifiedheight-idealheight-6,
+								   text='IDEAL',
+								   fill=color)
 		rectheight=modifiedheight*0.6
 		maxvalue=max(self.callingwindow.dicecounts)
 		scalingpercentage=[]
-		for x in range(self.callingwindow.dice):
+		for x in range(6):
 			scalingpercentage.append(self.callingwindow.dicecounts[x]/maxvalue)
 		intervalsheights=[]
-		for x in range(self.callingwindow.dice):
+		for x in range(6):
 			temp=[]
 			temp.append(self.intervals[x][0]/maxvalue*rectheight)
 			temp.append(self.intervals[x][1]/maxvalue*rectheight)
 			if temp[1]<0:
 				temp[1]=0
 			intervalsheights.append(temp)
-		for x in range(self.callingwindow.dice+1):
+		for x in range(7):#7 to split the screen for 6 rectangles
 			if (x+1) <(self.callingwindow.dice+1):
-				base=STATSSCREEN_WIDTH/(self.callingwindow.dice+1)*(x+1)
+				base=STATSSCREEN_WIDTH/(7)*(x+1)
 				drawRect(base,
 						 height=rectheight*scalingpercentage[x],
-						 width=STATSSCREEN_WIDTH/self.callingwindow.dice/2)
+						 width=STATSSCREEN_WIDTH/6/2)
 				drawDiceText(base,x+1)
 				drawIntervals(base,intervalsheights[x])
 		expectedheight=self.expectedrolls/maxvalue*rectheight
 		drawIdeal(expectedheight)
 	def drawStats(self):
 		self.headerstop=[]
+		statwidth=15
 		for x in range(6):
 			self.headerstop.append(tk.Label(self.statsframe,
 											text='Dice #'+str(x+1)))
@@ -1507,37 +1517,77 @@ class StatsWindow(tk.Frame):
 						  tk.Label(self.statsframe,
 								   text='Expected Percentage'),
 						  tk.Label(self.statsframe,
-								   text='95% Confidence Interval')]
+								   text='95% Confidence Interval'),
+						  tk.Label(self.statsframe,
+								   text='Chi-Fitness Test Confidence %:')]
 		
 		for x in range(6):
 			tk.Label(self.statsframe,
 					 text=self.dicecounts[x],
 					 relief='sunken',
-					 width=10).grid(row=1,column=x+1)
+					 width=statwidth).grid(row=1,column=x+1)
 		for x in range(6):
 			tk.Label(self.statsframe,
 					 text=self.expectedrolls,
 					 relief='sunken',
-					 width=10).grid(row=2,column=x+1)
+					 width=statwidth).grid(row=2,column=x+1)
 		for x in range(6):
 			tk.Label(self.statsframe,
 					 text=self.actualpercentage[x],
 					 relief='sunken',
-					 width=10).grid(row=3,column=x+1)
+					 width=statwidth).grid(row=3,column=x+1)
 		for x in range(6):
 			tk.Label(self.statsframe,
 					 text=self.expectedpercentage,
 					 relief='sunken',
-					 width=10).grid(row=4,column=x+1)
+					 width=statwidth).grid(row=4,column=x+1)
 		for x in range(6):
 			tk.Label(self.statsframe,
 					 text=str(self.intervals[x][1])+' - '+str(self.intervals[x][0]),
 					 relief='sunken',
-					 width=10).grid(row=5,column=x+1)
+					 width=statwidth).grid(row=5,column=x+1)
+		tk.Label(self.statsframe,
+				 text=str(round(self.callingwindow.chi*100,2)),
+				 relief='sunken',
+				 width=statwidth).grid(row=6,column=1)
 		for x in range(6):
 			self.headerstop[x].grid(row=0,column=x+1)
-		for x in range(5):
+		for x in range(6):
 			self.headersleft[x].grid(row=x+1,column=0,sticky='e')
+	def drawInterp(self):
+		text=tk.Text(self.interpframe,
+					 width=75,
+					 height=5)
+		text.pack()
+		passtest=[]
+		for x in range(6):
+			if (self.expectedrolls<self.intervals[x][1] or
+			    self.expectedrolls>self.intervals[x][0]):
+				   passtest.append(False)
+			else:
+				passtest.append(True)
+		text.tag_configure('warning',background='yellow',foreground='red')
+		fair=True
+		if False in passtest:
+			fair=False
+			buttons=[]
+			for x in range (6):
+				if passtest[x]==False:
+					buttons.append(x+1)
+			text.insert("0.0","Button(s)"+str(buttons)+" do not include their ideal value in"
+						+" their 95% confidence interval.",'warning')
+		else:
+			text.insert("0.0","All buttons include their ideal value in their 95% "\
+						"confidence interval.")
+		if self.callingwindow.chi<0.1:
+			fair=False
+			text.insert("4.0"," The P-value found from the chi test is "+str(round(self.callingwindow.chi,2))+", which is low enough to reject"
+						+" the null hypothesis.",'warning')
+		else:
+			text.insert("4.0"," The P-value found from the chi test is "+str(round(self.callingwindow.chi,2))+", which is too high to reject the"\
+						+" null hypothesis.")
+		if fair==False:
+			text.insert("4.0"," The dice should be assumed to be unfair.",'warning')
 	def drawButtons(self):
 		self.button=tk.Button(self.buttonframe,
 							  text='Quit',
