@@ -36,9 +36,12 @@ DIRECTIONSTEMPLATECROP3="DIRECTIONS\nThe image on the left is the image before m
 DICETEMPLATESPACE=3
 DICECROPS=(250,250,600,600)
 BASEIMAGESCALE=1
+ITERATIONDELAY=1000 #INHERENT DELAY BETWEEN DICE ROLLING ITERATIONS
 
 STATSSCREEN_HEIGHT=350
 STATSSCREEN_WIDTH=800
+
+TESTING=True
 
 CANVASESTIMATEHEIGHT=20
 CANVASESTIMATEWIDTH=200
@@ -1085,7 +1088,8 @@ class RollingWindow(tk.Frame):
 		self.listofrolls=[]
 		self.run=False
 		self.marginoferror=[None,None,None,None,None,None]
-		
+		self.times=[]
+		self.lasttime=0
 		self.dicestats=[tk.StringVar(),
 						tk.StringVar(),
 						tk.StringVar(),
@@ -1098,6 +1102,8 @@ class RollingWindow(tk.Frame):
 							tk.IntVar(),
 							tk.IntVar(),
 							tk.IntVar()]
+		self.timevar=tk.StringVar()
+		self.timevar.set("Estimating...")
 		self.expectedtimes=tk.IntVar()
 		self.expectedtimes.set(str(self.currenttrial/6*self.dice))
 		self.dicerollvar=tk.StringVar()
@@ -1187,7 +1193,7 @@ class RollingWindow(tk.Frame):
 										 textvariable=self.invalidtrialvar)
 		self.labeltotalrolls = tk.Label(self.upperleftframe, text='TOTAL ROLLS: '+str(self.totaltrials))
 		self.labeltimeleft = tk.Label(self.lowerupperframe, text='ESTIMATED TIME REMAINING')
-		self.labeltimeclock = tk.Label(self.timeremainingframe, text='58min 23sec')
+		self.labeltimeclock = tk.Label(self.timeremainingframe, textvariable=self.timevar)
 		
 		self.dicelist = tk.Listbox(self.upperrightframe, selectmode='single',width=self.dice*3)
 		self.panel = tk.Label(self.uppermiddleframe)
@@ -1255,7 +1261,7 @@ class RollingWindow(tk.Frame):
 		self.buttonstart.configure(state='disabled')
 		self.buttonstats.configure(state='disabled')
 		self.run=True
-		self.runIteration(test=True)
+		self.runIteration()
 	def pause(self):
 		self.buttonpause.configure(state='disabled')
 		self.run=False
@@ -1264,8 +1270,8 @@ class RollingWindow(tk.Frame):
 	def showStats(self):
 		self.statroot=tk.Tk()
 		window=StatsWindow(self.statroot,self)
-	def runIteration(self,test=True):
-		if test==True:
+	def runIteration(self):
+		if TESTING==True:
 			sc.runSolenoids()
 			time.sleep(.2)
 			strial=str(self.currenttrial+self.invalidrolls+1)
@@ -1296,33 +1302,70 @@ class RollingWindow(tk.Frame):
 				self.calculateConfidence()
 				self.calculateChi()
 				self.printStats()
-				if(self.currenttrial>5):
-					self.updateTime()
 			else:
 				self.invalidrolls=self.invalidrolls+1
 				self.invalidtrialvar.set("INVALID ROLL(s): #"+str(self.invalidrolls))
 			#e2=cv2.getTickCount()
 			if(self.currenttrial<self.totaltrials and self.run==True):
-				self.after(2500,self.runIteration)
+				self.after(ITERATIONDELAY,self.runIteration)
 			elif(self.run==False):
 				self.buttonstart.configure(state='normal') #enable start button again after completing current iteration
 				if self.currenttrial>=1:
 					self.buttonstats.configure(state='normal')
+			if(self.currenttrial==self.totaltrials):
+				self.buttonstart.configure(state='disabled')
+				self.buttonstats.configure(state='normal')
+			self.updateTime()
 		else:
 			sc.runSolenoids()
-			time.wait(200)
-			img=imagemanipulation.getCapture()
-			img=imagemanipulation.resizeImage(img)
-			isodiceimg,mask = removeBackground(img,self.master.setupdict['thresholdvals'])
-			dicearray,rects=isolateDice(isodiceimg)
-			templates = getTemplates()
-			templates = completeTemplates(templates)
+			areasetup=self.master.setupdict['areasetup']
+			img=imagemanipulation.getCapture(num)
+			img=imagemanipulation.adjustImage2(self.baseimg,
+										   angle=areasetup[0],
+										   hchange=areasetup[1],
+										   wchange=areasetup[2],
+										   xchange=areasetup[3],
+										   ychange=areasetup[4])
+			img=imagemanipulation.resizeImage(img,
+											  scale=BASEIMAGESCALE)
+			isodiceimg,mask=dd.removeBackground(img,self.master.setupdict['thresholdvals'])
+			dicearray,rects=dd.isolateDice(isodiceimg,img)
 			#e1=cv2.getTickCount() Measuring performance, for 6 dice takes around 0.12 seconds to analyze an image
-			dicevals=discernDice(templates,dicearray,img)
-			drawDiceVals(dicevals,rects,img)
-			self.img=imagemanipulation.cv2pil(img)
-			self.dicelabelimage.configure(self.img)
+			dicevals=dd.discernDice(self.master.setupdict['dicetemplates'],dicearray)
+			dd.drawDiceVals(dicevals,rects,img)
+			if len(dicevals)==self.dice:
+				self.currenttrial=self.currenttrial+1
+				self.expectedtimes.set(str(self.currenttrial/6*self.dice))
+				self.currenttrialvar.set("CURRENT ROLL: #"+str(self.currenttrial))
+				dicevals.sort()
+				self.listofrolls.append(dicevals)
+				self.dicerollvar.set("DICE ROLLED: "+str(dicevals))
+				if len(self.last10)<10:
+					self.last10.append(dicevals)
+				else:
+					self.last10.pop(0)
+					self.last10.append(dicevals)
+				self.printLastTen()
+				self.img=imagemanipulation.cv2pil(img)
+				self.labeldiceimage.configure(image=self.img)
+				self.pushDiceCounts(dicevals)
+				self.calculateConfidence()
+				self.calculateChi()
+				self.printStats()
+			else:
+				self.invalidrolls=self.invalidrolls+1
+				self.invalidtrialvar.set("INVALID ROLL(s): #"+str(self.invalidrolls))
 			#e2=cv2.getTickCount()
+			if(self.currenttrial<self.totaltrials and self.run==True):
+				self.after(ITERATIONDELAY,self.runIteration)
+			elif(self.run==False):
+				self.buttonstart.configure(state='normal') #enable start button again after completing current iteration
+				if self.currenttrial>=1:
+					self.buttonstats.configure(state='normal')
+			if(self.currenttrial==self.totaltrials):
+				self.buttonstart.configure(state='disabled')
+				self.buttonstats.configure(state='normal')
+			self.updateTime()
 	def newCapture(self):
 		pass
 	def calculateConfidence(self):
@@ -1370,11 +1413,42 @@ class RollingWindow(tk.Frame):
 		for x in range(len(self.last10)):
 			self.dicelist.insert(x,str(len(self.last10)-x)+str(': ')+str(self.last10[x]))
 	def updateTime(self):
-		self.timeslider.delete(all)
-		percent=self.currenttrial/self.totaltrials
-		width=percent*CANVASESTIMATEWIDTH
-		self.timeslider.create_rectangle(0,CANVASESTIMATEOFFSET,
-			width,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')		
+		if self.currenttrial>=5:
+			self.timeslider.delete(all)
+			percent=self.currenttrial/self.totaltrials
+			width=percent*CANVASESTIMATEWIDTH
+			self.timeslider.create_rectangle(0,CANVASESTIMATEOFFSET,
+				width,CANVASESTIMATEHEIGHT-CANVASESTIMATEOFFSET+1,fill='red')
+		if self.lasttime==0:
+			self.lasttime=time.time()
+		else:
+			currenttime=time.time()
+			elapsedtime=currenttime-self.lasttime
+			self.lasttime=currenttime
+			if len(self.times)<10:
+				self.times.append(elapsedtime)
+			else:
+				self.times.pop(0)
+				self.times.append(elapsedtime)
+		if self.currenttrial>=5:
+			sum_=0
+			for x in range(len(self.times)):
+				sum_=sum_+self.times[x]
+			timepertrial=sum_/len(self.times)
+			remainingtime=timepertrial*(self.totaltrials-self.currenttrial)
+			havehours=False
+			havemins=False
+			if remainingtime > 60*60:
+				hours=math.floor(remainingtime/60/60)
+				mins=math.floor(remainingtime/60)
+				seconds=math.floor(remainingtime-mins*60-hours*60*60)
+				self.timevar.set('Hrs:'+str(hours),",Mins:"+str(mins)+",Secs:"+str(seconds))
+			elif remainingtime>60:
+				mins=math.floor(remainingtime/60)
+				seconds=math.floor(remainingtime-mins*60)
+				self.timevar.set("Mins:"+str(mins)+",Secs:"+str(seconds))
+			else:
+				self.timevar.set("Secs:"+str(math.floor(remainingtime)))
 class StatsWindow(tk.Frame):
 	def __init__(self, master,callingwindow):
 		tk.Frame.__init__(self, master)

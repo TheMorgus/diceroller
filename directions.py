@@ -1,3 +1,4 @@
+
 DIRECTIONSCOLORCAILBRATION='Directions: Place a set of dice in the image capture area, and click New Capture.\n'+\
 								  'Then, adjust Hue, Saturation, and Lightness thresholds until:\n'+\
 								  '1)Dice Box is uniform white with little to no black holes\n'+\
@@ -22,3 +23,5 @@ DIRECTIONSTEMPLATECROP3="DIRECTIONS\nThe image on the left is the image before m
 						" image on the right is the modified template.\nUse the provided buttons to reduce the"+\
 						" space on the modified template so only the symbol and a reasonable\namount of dice"+\
 						" surface is visible, with visible rolling surface."
+
+
