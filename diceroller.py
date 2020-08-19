@@ -428,18 +428,49 @@ class RollingSetupWindow(tk.Frame):
 		self.parseClearance()
 	def pushWindow(self,window):
 		if window=="bgthresholding":
-			baseimg=imagemanipulation.getCaptureDUMMY()
-			baseimg=imagemanipulation.resizeImage(baseimg)
-			img=baseimg.copy()
-			img=imagemanipulation.cv2pil(img)
-			baseimg=imagemanipulation.convertHSV(baseimg)
+			if TESTING==True:
+				baseimg=imagemanipulation.getCaptureDUMMY()
+				baseimg=imagemanipulation.resizeImage(baseimg)
+				img=baseimg.copy()
+				img=imagemanipulation.cv2pil(img)
+				baseimg=imagemanipulation.convertHSV(baseimg)
+			else:
+				areasetup=self.master.setupdict['areasetup']
+				baseimg=imagemanipulation.getCapture()
+				baseimg=imagemanipulation.adjustImage2(baseimg,
+												   angle=areasetup[0],
+												   hchange=areasetup[1],
+												   wchange=areasetup[2],
+												   xchange=areasetup[3],
+												   ychange=areasetup[4])
+												   
+				baseimg=imagemanipulation.resizeImage(baseimg,
+													  scale=BASEIMAGESCALE)
+				img=baseimg.copy()
+				img=imagemanipulation.cv2pil(img)
+				baseimg=imagemanipulation.convertHSV(baseimg)
 			window=BackgroundThresholdBaseWindow(self.master,baseimg,img)
 			self.master.changeWindow(window)
 		if window=='dicetemplates':
-			baseimg=imagemanipulation.getCaptureDUMMY('4')
-			baseimg=imagemanipulation.resizeImage(baseimg,TEMPLATEWINDOWSCALE)
-			img=baseimg.copy()
-			img=imagemanipulation.cv2pil(img)
+			if TESTING==True:
+				baseimg=imagemanipulation.getCaptureDUMMY('4')
+				baseimg=imagemanipulation.resizeImage(baseimg,0.5)
+				img=baseimg.copy()
+				img=imagemanipulation.cv2pil(img)
+			else:
+				areasetup=self.master.setupdict['areasetup']
+				baseimg=imagemanipulation.getCapture()
+				baseimg=imagemanipulation.adjustImage2(baseimg,
+												   angle=areasetup[0],
+												   hchange=areasetup[1],
+												   wchange=areasetup[2],
+												   xchange=areasetup[3],
+												   ychange=areasetup[4])
+												   
+				baseimg=imagemanipulation.resizeImage(baseimg,
+													  scale=BASEIMAGESCALE)
+				img=baseimg.copy()
+				img=imagemanipulation.cv2pil(img)
 			window=TemplateCreationWindow(self.master,baseimg,img)
 			self.master.changeWindow(window)
 		if window=='areasetup':
@@ -458,6 +489,7 @@ class RollingSetupWindow(tk.Frame):
 		self.master.close()
 	def start(self):
 		window=RollingWindow(self.master)
+		self.master.menu.menuTrial()
 		self.master.changeWindow(window)
 	def auditMenu(self):
 		self.master.menu.auditSetup(self.checkboxstate)
@@ -590,8 +622,19 @@ class BackgroundThresholdBaseWindow(tk.Frame):
 		self.getbasethresholdbutton.pack(side='left')
 		self.nextbutton.pack(side='left')
 	def pushWindow(self):
-		baseimg = imagemanipulation.getCaptureDUMMY('2')
-		baseimg = imagemanipulation.resizeImage(baseimg)
+		if TESTING==True:
+			baseimg = imagemanipulation.getCaptureDUMMY('2')
+			baseimg = imagemanipulation.resizeImage(baseimg)
+		else:
+			areasetup=self.master.setupdict['areasetup']
+			baseimg=imagemanipulation.getCapture()
+			baseimg=imagemanipulation.adjustImage2(baseimg,
+												   angle=areasetup[0],
+												   hchange=areasetup[1],
+												   wchange=areasetup[2],
+												   xchange=areasetup[3],
+												   ychange=areasetup[4])
+			baseimg = imagemanipulation.resizeImage(baseimg, BASEIMAGESCALE/1.5)
 		img=baseimg.copy()
 		img=imagemanipulation.cv2pil(img)
 		mask=imagemanipulation.calibrateMask(baseimg)
@@ -605,9 +648,26 @@ class BackgroundThresholdBaseWindow(tk.Frame):
 	def closeWindow(self):
 		self.destroy()
 	def newCapture(self):
-		img=imagemanipulation.getCapture()
-		img=imagemanipulation.resizeImage(img,scale=1)
-		self.baseimg=imagemanipulation.convertHSV(img)
+		if TESTING==True:
+				baseimg=imagemanipulation.getCaptureDUMMY()
+				baseimg=imagemanipulation.resizeImage(baseimg)
+				img=baseimg.copy()
+				baseimg=imagemanipulation.convertHSV(baseimg)
+		else:
+			areasetup=self.master.setupdict['areasetup']
+			baseimg=imagemanipulation.getCapture()
+			baseimg=imagemanipulation.adjustImage2(baseimg,
+												   angle=areasetup[0],
+												   hchange=areasetup[1],
+												   wchange=areasetup[2],
+												   xchange=areasetup[3],
+												   ychange=areasetup[4])
+												   
+			baseimg=imagemanipulation.resizeImage(baseimg,
+													  scale=BASEIMAGESCALE)
+			img=baseimg.copy()
+			baseimg=imagemanipulation.convertHSV(baseimg)
+		self.baseimg=baseimg
 		self.backgroundimg=imagemanipulation.cv2pil(img)
 		self.img.configure(image=self.backgroundimg)
 	def getThresholdValues(self):
@@ -807,8 +867,19 @@ class ColorThresholdingWindow(tk.Frame):
 		self.master.setupdict["thresholdvals"]=self.thresholdvals
 		self.master.changeWindow(window)
 	def newCapture(self):
-		baseimg=imagemanipulation.getCaptureDUMMY('3')
-		self.baseimg=imagemanipulation.resizeImage(baseimg)
+		if TESTING==True:
+			baseimg = imagemanipulation.getCaptureDUMMY('3')
+		else:
+			areasetup=self.master.setupdict['areasetup']
+			baseimg=imagemanipulation.getCapture()
+			baseimg=imagemanipulation.adjustImage2(baseimg,
+												   angle=areasetup[0],
+												   hchange=areasetup[1],
+												   wchange=areasetup[2],
+												   xchange=areasetup[3],
+												   ychange=areasetup[4])
+		self.baseimg=baseimg
+		self.baseimg=imagemanipulation.resizeImage(baseimg,BASEIMAGESCALE/1.5)
 		self.baseimgpil=imagemanipulation.cv2pil(self.baseimg)
 		self.img[0].configure(image=self.baseimgpil)
 		self.maskimg=imagemanipulation.calibrateMask(self.baseimg,
@@ -1251,18 +1322,22 @@ class TrialSetupWindow(tk.Frame):
 	def openWindow(self):
 		self.pack()
 		self.trialsframe.pack()
-		for frame in self.trialsinnerframes:
-			frame.pack(pady=2,
+		for x in range(len(self.trialsinnerframes)):
+			if x != 0:
+				self.trialsinnerframes[x].pack(pady=2,
 					   fill='both')
+		#for frame in self.trialsinnerframes:
+		#	frame.pack(pady=2,
+		#			   fill='both')
 		self.diceframe.pack(pady=2,
 							fill='both')
 		self.summaryframe.pack()
 		self.trialheaders[0].pack(pady=15)
 		self.checkbuttons[0].pack(anchor='w')
-		self.confidenceframe.pack()
-		self.confidencelabel.pack(side='left')
-		self.confidenceentry.pack(side='left')
-		self.confidencepercent.pack(side='left')
+		#self.confidenceframe.pack()
+		#self.confidencelabel.pack(side='left')
+		#self.confidenceentry.pack(side='left')
+		#self.confidencepercent.pack(side='left')
 		self.trialheaders[1].pack(pady=15)
 		self.checkbuttons[1].pack(anchor='w')
 		self.checkbuttons[2].pack(anchor='w')
@@ -1314,6 +1389,8 @@ class TrialSetupWindow(tk.Frame):
 		for check in self.checkvars:
 			checks.append(check.get())
 		confidence=self.entryvars[0].get()
+		checks[0]=True
+		confidence='95' ##depreciated variable, set to this valuable to ensure program runs
 		trials=self.entryvars[1].get()
 		dice=self.entryvars[2].get()
 		if checks[0] and confidence=='':
@@ -1348,7 +1425,7 @@ class TrialSetupWindow(tk.Frame):
 				self.summarytext.configure(state='disabled')
 				self.button.configure(state='disabled')
 		else:
-			if confidence=='0':
+			if confidence=='95':
 				text='There will be '+trials+' trials run'+\
 					 ' on '+dice+' dice.'
 				self.summarytext.configure(state='normal')
@@ -1357,8 +1434,7 @@ class TrialSetupWindow(tk.Frame):
 				self.summarytext.configure(state='disabled')
 			else:
 				text='There will be a max of '+trials+'\ntrials ran, '+\
-					 'which will end\nearly if '+confidence+'% confidence\n'+\
-					 'is achieved using '+dice+' dice.'
+					 ''+dice+' dice.'
 				self.summarytext.configure(state='normal')
 				self.summarytext.delete('0.0','10.10')
 				self.summarytext.insert('0.0',text)
@@ -1796,8 +1872,8 @@ class RollingWindow(tk.Frame):
 		else:
 			sc.runSolenoids()
 			areasetup=self.master.setupdict['areasetup']
-			img=imagemanipulation.getCapture(num)
-			img=imagemanipulation.adjustImage2(self.baseimg,
+			img=imagemanipulation.getCapture()
+			img=imagemanipulation.adjustImage2(img,
 										   angle=areasetup[0],
 										   hchange=areasetup[1],
 										   wchange=areasetup[2],
@@ -2167,9 +2243,13 @@ class BaseMenu(tk.Menu):
 			command=self.master.exit)
 		self.master.config(menu=self)
 	def menuTrial(self):
-		self.filemenu[0].add_command(label="Save", accelerator='(F5)',
-			command=self.master.exit)
-		self.filemenu[0].add_command(label="Load", accelerator='(F6)',
+		for x in range(4):
+			self.filemenu[0].delete(3-x)
+		self.filemenu[0].add_command(label="Save Trial", accelerator='(F5)',
+			command=self.saveTrials)
+		self.filemenu[0].add_command(label="Load Trial", accelerator='(F6)',
+			command=self.loadTrials)
+		self.filemenu[0].add_command(label="Exit", accelerator='(Crtl + X)',
 			command=self.master.exit)
 		self.master.config(menu=self)
 	def auditSetup(self,checkboxes):
@@ -2202,7 +2282,24 @@ class BaseMenu(tk.Menu):
 										  initialdir=(WORKINGDIRECTORY+'/Save'))
 		if(path != ''):
 			fm.store_data(path,self.master.setupdict['areasetup'])
-		
+	def saveTrials(self):
+		type_=[('Dice Trial Files','*.dtf')]
+		path=filedialog.asksaveasfilename(title='Select File',
+										  filetypes=type_,
+										  initialdir=(WORKINGDIRECTORY+'/Save'))
+		if(path != ''):
+			fm.store_data(path,self.master.currentwindow.listofrolls)
+	def loadTrials(self):
+		path=''
+		path=filedialog.askopenfilename(title='Select File',
+									    initialdir=(WORKINGDIRECTORY+'/Save'))
+		if (path not in['',()]):
+			trials=fm.load_data(path)
+			self.master.currentwindow.listofrolls=trials	
+			self.master.currentwindow.currenttrial=len(trials)
+			for x in range(self.master.currentwindow.dice):
+				self.master.currentwindow.dicecounts[x]=len(trials)
+			self.master.currentwindow.printStats()
 
 accelqueue = Queue()
 #mainthread=Thread(target=thread_main,args=("Thread-1",accelqueue))

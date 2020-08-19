@@ -23,5 +23,3 @@ DIRECTIONSTEMPLATECROP3="DIRECTIONS\nThe image on the left is the image before m
 						" image on the right is the modified template.\nUse the provided buttons to reduce the"+\
 						" space on the modified template so only the symbol and a reasonable\namount of dice"+\
 						" surface is visible, with visible rolling surface."
-
-

@@ -278,7 +278,7 @@ def imageSize(img):
 	x,y,_=img.shape
 	return x,y
 if __name__=="__main__":
-	img = cv2.imread('dicetest/white/white1cropped.jpg', -1)
+	img = cv2.imread('dicetest/numbers/number1cropped.jpg', -1)
 	img = resizeImage(img)
 	#colorthreshold=calibrateMask(img)
 	refPt = [(None,None)]	
@@ -286,7 +286,7 @@ if __name__=="__main__":
 	#cv2.imshow('image',img)
 	#im=selectAndCrop(img)
 	#cv2.imshow('image',im)
-	isodiceimg,mask = removeBackground(img,(25,0,255,100,255,0))
+	isodiceimg,mask = removeBackground(img,(25,0,255,100,255,100))
 
 	dicearray,rects=isolateDice(isodiceimg,img)
 	templates = getTemplates()
